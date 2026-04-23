@@ -422,6 +422,136 @@ class EstrategiaEstocastico(EstrategiaBaseForex):
         )
 
 
+class EstrategiaDonchianEMA(EstrategiaBaseForex):
+    """Ruptura de Donchian filtrada por una EMA tendencial."""
+
+    donchian_periodo = 30
+    ema_tendencia = 200
+
+    def init(self):
+        self.canal_superior = self.I(
+            calcular_donchian_superior,
+            self.data.High,
+            int(self.donchian_periodo),
+        )
+        self.canal_inferior = self.I(
+            calcular_donchian_inferior,
+            self.data.Low,
+            int(self.donchian_periodo),
+        )
+        self.ema = self.I(calcular_ema, self.data.Close, int(self.ema_tendencia))
+
+    def _senal_compra(self) -> bool:
+        return bool(
+            not np.isnan(self.canal_superior[-1])
+            and self.data.Close[-1] > self.canal_superior[-1]
+            and self.data.Close[-1] > self.ema[-1]
+        )
+
+    def _senal_venta(self) -> bool:
+        return bool(
+            not np.isnan(self.canal_inferior[-1])
+            and self.data.Close[-1] < self.canal_inferior[-1]
+            and self.data.Close[-1] < self.ema[-1]
+        )
+
+
+class EstrategiaRSI2Tendencia(EstrategiaBaseForex):
+    """Busca micro retrocesos con RSI corto dentro de una tendencia mayor."""
+
+    ema_tendencia = 200
+    rsi_periodo = 2
+    umbral_largo = 15
+    umbral_corto = 85
+
+    def init(self):
+        self.ema = self.I(calcular_ema, self.data.Close, int(self.ema_tendencia))
+        self.rsi = self.I(calcular_rsi, self.data.Close, int(self.rsi_periodo))
+
+    def _senal_compra(self) -> bool:
+        return bool(
+            self.data.Close[-1] > self.ema[-1]
+            and self.rsi[-2] <= float(self.umbral_largo) < self.rsi[-1]
+        )
+
+    def _senal_venta(self) -> bool:
+        return bool(
+            self.data.Close[-1] < self.ema[-1]
+            and self.rsi[-2] >= float(self.umbral_corto) > self.rsi[-1]
+        )
+
+
+class EstrategiaRupturaSesion(EstrategiaBaseForex):
+    """Opera la ruptura del rango inicial de una sesion intradia."""
+
+    hora_inicio_utc = 7
+    minutos_rango = 60
+    hora_fin_operativa = 12
+    buffer_pips = 1.0
+
+    def init(self):
+        self._fecha_actual = None
+        self._maximo_rango = np.nan
+        self._minimo_rango = np.nan
+        self._operacion_lanzada = False
+
+    def _reiniciar_dia(self, fecha):
+        self._fecha_actual = fecha
+        self._maximo_rango = np.nan
+        self._minimo_rango = np.nan
+        self._operacion_lanzada = False
+
+    def next(self):
+        """Construye el rango al inicio de la sesion y opera solo la primera ruptura."""
+        self._actualizar_trailing_stop()
+
+        marca_tiempo = pd.Timestamp(self.data.index[-1])
+        fecha = marca_tiempo.date()
+        if fecha != self._fecha_actual:
+            self._reiniciar_dia(fecha)
+
+        if not self._esta_en_sesion():
+            return
+
+        minuto_actual = marca_tiempo.hour * 60 + marca_tiempo.minute
+        minuto_inicio = int(self.hora_inicio_utc) * 60
+        minuto_fin_rango = minuto_inicio + int(self.minutos_rango)
+        minuto_fin_operativa = int(self.hora_fin_operativa) * 60
+
+        if minuto_actual < minuto_inicio or minuto_actual >= minuto_fin_operativa:
+            return
+
+        if minuto_inicio <= minuto_actual < minuto_fin_rango:
+            maximo = float(self.data.High[-1])
+            minimo = float(self.data.Low[-1])
+            self._maximo_rango = (
+                maximo if np.isnan(self._maximo_rango) else max(self._maximo_rango, maximo)
+            )
+            self._minimo_rango = (
+                minimo if np.isnan(self._minimo_rango) else min(self._minimo_rango, minimo)
+            )
+            return
+
+        if self._operacion_lanzada or np.isnan(self._maximo_rango) or np.isnan(self._minimo_rango):
+            return
+
+        buffer = float(self.buffer_pips) * float(self.pip_size)
+        cierre = float(self.data.Close[-1])
+
+        if cierre > self._maximo_rango + buffer:
+            if self._ya_hay_direccion_abierta("long") and int(self.max_open_trades) <= 1:
+                return
+            if self._puede_abrir_nueva_operacion("long"):
+                self._abrir_operacion("long")
+                self._operacion_lanzada = True
+        elif cierre < self._minimo_rango - buffer:
+            if self._ya_hay_direccion_abierta("short") and int(self.max_open_trades) <= 1:
+                return
+            if self._puede_abrir_nueva_operacion("short"):
+                self._abrir_operacion("short")
+                self._operacion_lanzada = True
+
+
 CONFIGURACION_ESTRATEGIAS = {
     "Cruce de Medias Moviles": {
         "clase": EstrategiaCruceEMAs,
@@ -672,6 +802,124 @@ CONFIGURACION_ESTRATEGIAS = {
                 valor_defecto=20,
                 paso=1,
                 ayuda="Nivel bajo de referencia para compras.",
+            ),
+        ],
+    },
+    "Donchian + EMA": {
+        "clase": EstrategiaDonchianEMA,
+        "descripcion": "Ruptura del canal de Donchian a favor de una EMA de tendencia.",
+        "parametros": [
+            ParametroUI(
+                clave="donchian_periodo",
+                etiqueta="Periodo Donchian",
+                tipo="int",
+                valor_min=5,
+                valor_max=250,
+                valor_defecto=30,
+                paso=1,
+                ayuda="Numero de velas usadas para calcular la ruptura.",
+            ),
+            ParametroUI(
+                clave="ema_tendencia",
+                etiqueta="Periodo EMA tendencia",
+                tipo="int",
+                valor_min=20,
+                valor_max=400,
+                valor_defecto=200,
+                paso=1,
+                ayuda="EMA usada como filtro de fondo tendencial.",
+            ),
+        ],
+    },
+    "RSI2 con tendencia": {
+        "clase": EstrategiaRSI2Tendencia,
+        "descripcion": "Mean reversion corto dentro de una tendencia mayor filtrada por EMA.",
+        "parametros": [
+            ParametroUI(
+                clave="ema_tendencia",
+                etiqueta="Periodo EMA tendencia",
+                tipo="int",
+                valor_min=20,
+                valor_max=400,
+                valor_defecto=200,
+                paso=1,
+                ayuda="EMA que define el sesgo principal del mercado.",
+            ),
+            ParametroUI(
+                clave="rsi_periodo",
+                etiqueta="Periodo RSI",
+                tipo="int",
+                valor_min=2,
+                valor_max=10,
+                valor_defecto=2,
+                paso=1,
+                ayuda="RSI corto para detectar retrocesos intradia.",
+            ),
+            ParametroUI(
+                clave="umbral_largo",
+                etiqueta="Umbral RSI largos",
+                tipo="int",
+                valor_min=2,
+                valor_max=40,
+                valor_defecto=15,
+                paso=1,
+                ayuda="Nivel que el RSI debe recuperar al alza para comprar.",
+            ),
+            ParametroUI(
+                clave="umbral_corto",
+                etiqueta="Umbral RSI cortos",
+                tipo="int",
+                valor_min=60,
+                valor_max=98,
+                valor_defecto=85,
+                paso=1,
+                ayuda="Nivel que el RSI debe perder a la baja para vender.",
+            ),
+        ],
+    },
+    "Ruptura de sesion": {
+        "clase": EstrategiaRupturaSesion,
+        "descripcion": "Opera la primera ruptura del rango inicial de una sesion intradia.",
+        "parametros": [
+            ParametroUI(
+                clave="hora_inicio_utc",
+                etiqueta="Hora inicio UTC",
+                tipo="int",
+                valor_min=0,
+                valor_max=20,
+                valor_defecto=7,
+                paso=1,
+                ayuda="Hora UTC a partir de la que se empieza a construir el rango.",
+            ),
+            ParametroUI(
+                clave="minutos_rango",
+                etiqueta="Minutos del rango",
+                tipo="int",
+                valor_min=15,
+                valor_max=180,
+                valor_defecto=60,
+                paso=5,
+                ayuda="Duracion del rango inicial antes de buscar la ruptura.",
+            ),
+            ParametroUI(
+                clave="hora_fin_operativa",
+                etiqueta="Hora fin operativa UTC",
+                tipo="int",
+                valor_min=1,
+                valor_max=23,
+                valor_defecto=12,
+                paso=1,
+                ayuda="Hora limite hasta la que se permiten entradas ese dia.",
+            ),
+            ParametroUI(
+                clave="buffer_pips",
+                etiqueta="Buffer de ruptura (pips)",
+                tipo="float",
+                valor_min=0.0,
+                valor_max=10.0,
+                valor_defecto=1.0,
+                paso=0.5,
+                ayuda="Margen adicional para evitar rupturas demasiado justas.",
             ),
         ],
     },

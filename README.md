@@ -132,6 +132,9 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 - Donchian Breakout
 - EMA + RSI tendencia
 - Estocastico extremo
+- Donchian + EMA
+- RSI2 con tendencia
+- Ruptura de sesion
 
 ## Estrategias personalizadas
 
@@ -236,6 +239,28 @@ Ejemplos utiles:
 ```
 
 La carpeta `data/` esta ignorada por Git para no subir historicos masivos al repositorio.
+
+## Investigacion de estrategias
+
+El proyecto incluye un runner para buscar estrategias y parametros sobre los datos de HistData:
+
+```powershell
+.\.venv\Scripts\python scripts\optimize_forex_strategies.py --workers 4 --spread-pips 0.5 --screen-candidates 6 --deep-candidates 16 --report-name mi_investigacion
+```
+
+Que hace:
+
+- lanza un cribado inicial de todas las estrategias integradas
+- profundiza solo en las familias que mejor sobreviven
+- aplica validacion walk-forward sobre varios años
+- genera un informe Markdown reproducible
+- guarda tambien los resultados completos en JSON
+
+La ultima investigacion completa que se genero en este repo esta en:
+
+```text
+reports/strategy_research/full_research_spread05_20260423/
+```
 
 ## Publicacion en Cloudflare
 

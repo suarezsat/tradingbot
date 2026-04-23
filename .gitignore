@@ -2,4 +2,6 @@ node_modules/
 .wrangler/
 *.log
 *.pid
+__pycache__/
+*.pyc
 data/
