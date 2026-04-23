@@ -1,0 +1,12 @@
+.git
+.gitignore
+.playwright-cli
+.streamlit.pid
+.venv
+node_modules
+streamlit.err.log
+streamlit.out.log
+__pycache__
+*.pyc
+*.pyo
+*.pyd

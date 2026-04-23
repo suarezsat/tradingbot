@@ -208,3 +208,84 @@ Desde la carpeta del proyecto, ejecuta exactamente:
 ```powershell
 python -m streamlit run app.py
 ```
+
+## Publicacion en Cloudflare
+
+Este repo incluye configuracion para desplegar la app publica con Cloudflare Containers:
+
+- `Dockerfile` para empaquetar la app Streamlit
+- `wrangler.jsonc` para el Worker y el contenedor
+- `src/index.js` como proxy publico hacia la instancia del contenedor
+- `package.json` para instalar `wrangler` y `@cloudflare/containers`
+
+### Desplegar en Cloudflare
+
+1. Asegurate de tener Docker Desktop arrancado.
+2. Instala las dependencias de Cloudflare:
+
+```powershell
+npm install
+```
+
+3. Comprueba tu sesion:
+
+```powershell
+npx wrangler whoami
+```
+
+4. Despliega:
+
+```powershell
+npx wrangler deploy
+```
+
+Al terminar, Cloudflare devolvera una URL publica `workers.dev` y el proyecto aparecera en el dashboard de `Workers & Pages`, incluyendo la vista de `Containers`.
+
+### Requisito de plan
+
+Cloudflare Containers requiere `Workers Paid plan`.
+
+Si tu cuenta esta en plan gratuito:
+
+- el repo ya queda preparado para Containers
+- pero el despliegue gestionado no terminara hasta subir el plan
+- mientras tanto puedes publicar la app temporalmente con Tunnel
+
+### Publicacion temporal con Cloudflare Tunnel
+
+Con la app corriendo en local:
+
+```powershell
+python -m streamlit run app.py
+```
+
+puedes exponerla publicamente con:
+
+```powershell
+npx wrangler tunnel quick-start http://127.0.0.1:8501
+```
+
+Eso devuelve una URL `trycloudflare.com` temporal que funciona mientras tu proceso local siga encendido.
+
+### Importante sobre persistencia
+
+La app original guarda backtests y estrategias en disco local. En Cloudflare Containers, el sistema de archivos del contenedor es efimero entre reinicios o despliegues.
+
+Eso significa que:
+
+- la web publica funciona
+- la UI y el panel se pueden abrir desde Cloudflare
+- pero los guardados hechos dentro del despliegue publico no estan garantizados a largo plazo
+
+Si quieres que los backtests y estrategias guardadas persistan en la version publica, el siguiente paso es mover esa persistencia a servicios de Cloudflare como R2, D1 o KV.
+
+### GitHub + Cloudflare
+
+Una vez creado el Worker en Cloudflare:
+
+1. Entra en `Workers & Pages`.
+2. Abre el Worker `tradingbot`.
+3. Ve a `Settings > Builds`.
+4. Conecta el repositorio de GitHub `suarezsat/tradingbot`.
+
+Cloudflare indica en su documentacion oficial que esa conexion permite despliegues automaticos en cada push al repositorio y comentarios/checks sobre builds en GitHub.
