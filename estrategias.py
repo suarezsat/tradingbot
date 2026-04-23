@@ -94,6 +94,13 @@ def calcular_stochastic_d(maximos, minimos, cierres, periodo_k: int, periodo_d: 
     return k.rolling(periodo_d).mean().fillna(50).to_numpy()
 
 
+def calcular_roc(valores, periodo: int):
+    """Calcula el Rate of Change porcentual."""
+    serie = pd.Series(valores, dtype=float)
+    roc = ((serie / serie.shift(periodo)) - 1.0) * 100.0
+    return roc.fillna(0.0).to_numpy()
+
+
 @dataclass(frozen=True)
 class ParametroUI:
     """Describe un control de la interfaz asociado a una estrategia."""
@@ -552,6 +559,63 @@ class EstrategiaRupturaSesion(EstrategiaBaseForex):
                 self._operacion_lanzada = True
 
 
+class EstrategiaFiltroPorcentual(EstrategiaBaseForex):
+    """Extiende el breakout clasico exigiendo una ruptura porcentual minima."""
+
+    lookback = 30
+    filtro_porcentual = 0.08
+
+    def init(self):
+        self.canal_superior = self.I(
+            calcular_donchian_superior,
+            self.data.High,
+            int(self.lookback),
+        )
+        self.canal_inferior = self.I(
+            calcular_donchian_inferior,
+            self.data.Low,
+            int(self.lookback),
+        )
+
+    def _senal_compra(self) -> bool:
+        if np.isnan(self.canal_superior[-1]):
+            return False
+        umbral = self.canal_superior[-1] * (1.0 + float(self.filtro_porcentual) / 100.0)
+        return bool(self.data.Close[-1] > umbral)
+
+    def _senal_venta(self) -> bool:
+        if np.isnan(self.canal_inferior[-1]):
+            return False
+        umbral = self.canal_inferior[-1] * (1.0 - float(self.filtro_porcentual) / 100.0)
+        return bool(self.data.Close[-1] < umbral)
+
+
+class EstrategiaMomentumROC(EstrategiaBaseForex):
+    """Opera continuidad cuando el momentum supera un umbral dentro de tendencia."""
+
+    roc_periodo = 30
+    umbral_roc = 0.12
+    ema_tendencia = 200
+
+    def init(self):
+        self.roc = self.I(calcular_roc, self.data.Close, int(self.roc_periodo))
+        self.ema = self.I(calcular_ema, self.data.Close, int(self.ema_tendencia))
+
+    def _senal_compra(self) -> bool:
+        umbral = float(self.umbral_roc)
+        return bool(
+            self.data.Close[-1] > self.ema[-1]
+            and self.roc[-2] <= umbral < self.roc[-1]
+        )
+
+    def _senal_venta(self) -> bool:
+        umbral = -float(self.umbral_roc)
+        return bool(
+            self.data.Close[-1] < self.ema[-1]
+            and self.roc[-2] >= umbral > self.roc[-1]
+        )
+
+
 CONFIGURACION_ESTRATEGIAS = {
     "Cruce de Medias Moviles": {
         "clase": EstrategiaCruceEMAs,
@@ -920,6 +984,68 @@ CONFIGURACION_ESTRATEGIAS = {
                 valor_defecto=1.0,
                 paso=0.5,
                 ayuda="Margen adicional para evitar rupturas demasiado justas.",
+            ),
+        ],
+    },
+    "Filtro porcentual": {
+        "clase": EstrategiaFiltroPorcentual,
+        "descripcion": "Ruptura de maximos/minimos previos solo si supera un filtro porcentual minimo.",
+        "parametros": [
+            ParametroUI(
+                clave="lookback",
+                etiqueta="Lookback de extremos",
+                tipo="int",
+                valor_min=5,
+                valor_max=240,
+                valor_defecto=30,
+                paso=1,
+                ayuda="Numero de velas para definir el maximo y minimo previos.",
+            ),
+            ParametroUI(
+                clave="filtro_porcentual",
+                etiqueta="Filtro porcentual (%)",
+                tipo="float",
+                valor_min=0.01,
+                valor_max=1.0,
+                valor_defecto=0.08,
+                paso=0.01,
+                ayuda="Porcentaje adicional que debe romper el precio para activar la entrada.",
+            ),
+        ],
+    },
+    "Momentum ROC": {
+        "clase": EstrategiaMomentumROC,
+        "descripcion": "Sigue continuidad direccional cuando el ROC cruza un umbral dentro de tendencia.",
+        "parametros": [
+            ParametroUI(
+                clave="roc_periodo",
+                etiqueta="Periodo ROC",
+                tipo="int",
+                valor_min=5,
+                valor_max=240,
+                valor_defecto=30,
+                paso=1,
+                ayuda="Numero de velas usadas para medir el momentum porcentual.",
+            ),
+            ParametroUI(
+                clave="umbral_roc",
+                etiqueta="Umbral ROC (%)",
+                tipo="float",
+                valor_min=0.01,
+                valor_max=1.0,
+                valor_defecto=0.12,
+                paso=0.01,
+                ayuda="Umbral minimo de momentum para activar la senal.",
+            ),
+            ParametroUI(
+                clave="ema_tendencia",
+                etiqueta="Periodo EMA tendencia",
+                tipo="int",
+                valor_min=20,
+                valor_max=400,
+                valor_defecto=200,
+                paso=1,
+                ayuda="EMA usada como filtro de sesgo principal.",
             ),
         ],
     },

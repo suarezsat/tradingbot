@@ -135,6 +135,8 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 - Donchian + EMA
 - RSI2 con tendencia
 - Ruptura de sesion
+- Filtro porcentual
+- Momentum ROC
 
 ## Estrategias personalizadas
 
@@ -261,6 +263,14 @@ La ultima investigacion completa que se genero en este repo esta en:
 ```text
 reports/strategy_research/full_research_spread05_20260423/
 ```
+
+Puedes endurecer o ampliar el estudio sin tocar el codigo usando tambien:
+
+- `--pairs-core`
+- `--pairs-expanded`
+- `--screen-years`
+- `--deep-years`
+- `--final-years`
 
 ## Publicacion en Cloudflare
 

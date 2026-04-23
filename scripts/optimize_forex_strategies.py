@@ -96,6 +96,15 @@ ESPACIOS_ESTRATEGIA = {
         "hora_fin_operativa": [10, 11, 12, 14, 16],
         "buffer_pips": [0.0, 0.5, 1.0, 1.5, 2.0, 3.0],
     },
+    "Filtro porcentual": {
+        "lookback": [10, 20, 30, 40, 60, 90],
+        "filtro_porcentual": [0.02, 0.04, 0.06, 0.08, 0.12, 0.16, 0.2],
+    },
+    "Momentum ROC": {
+        "roc_periodo": [10, 20, 30, 45, 60, 90, 120],
+        "umbral_roc": [0.02, 0.04, 0.06, 0.08, 0.12, 0.16, 0.2],
+        "ema_tendencia": [50, 100, 150, 200, 300],
+    },
 }
 
 
@@ -377,6 +386,25 @@ def construir_datasets(pairs: list[str], years: list[int]) -> list[dict[str, obj
     return datasets
 
 
+def construir_folds(pair_core: list[str], years: list[int]) -> list[dict[str, object]]:
+    years = sorted(set(years))
+    if len(years) < 3:
+        raise RuntimeError("Se necesitan al menos 3 anos para construir walk-forward.")
+
+    folds = []
+    for idx in range(2, len(years)):
+        train_years = years[idx - 2:idx]
+        test_year = years[idx]
+        folds.append(
+            {
+                "name": f"{train_years[0]}-{train_years[1]} -> {test_year}",
+                "train": [f"{pair}_{year}" for pair in pair_core for year in train_years],
+                "test": [f"{pair}_{test_year}" for pair in pair_core],
+            }
+        )
+    return folds
+
+
 def ejecutar_fase(
     phase_name: str,
     strategy_names: list[str],
@@ -461,24 +489,9 @@ def mejores_por_estrategia(resultados: list[dict[str, object]], por_estrategia: 
 def analizar_walk_forward(
     deep_results: list[dict[str, object]],
     pair_core: list[str],
+    years: list[int],
 ) -> list[dict[str, object]]:
-    folds = [
-        {
-            "name": "2021-2022 -> 2023",
-            "train": [f"{pair}_{year}" for pair in pair_core for year in (2021, 2022)],
-            "test": [f"{pair}_2023" for pair in pair_core],
-        },
-        {
-            "name": "2022-2023 -> 2024",
-            "train": [f"{pair}_{year}" for pair in pair_core for year in (2022, 2023)],
-            "test": [f"{pair}_2024" for pair in pair_core],
-        },
-        {
-            "name": "2023-2024 -> 2025",
-            "train": [f"{pair}_{year}" for pair in pair_core for year in (2023, 2024)],
-            "test": [f"{pair}_2025" for pair in pair_core],
-        },
-    ]
+    folds = construir_folds(pair_core, years)
 
     top_candidates = mejores_por_estrategia(deep_results, por_estrategia=12)
     analisis = []
@@ -535,9 +548,10 @@ def seleccionar_parametros_finales(
     deep_results: list[dict[str, object]],
     strategy_name: str,
     pair_core: list[str],
+    train_years: list[int],
 ) -> dict[str, object]:
     candidatos = [item for item in deep_results if item["strategy_name"] == strategy_name][:12]
-    datasets_train = [f"{pair}_{year}" for pair in pair_core for year in (2021, 2022, 2023, 2024)]
+    datasets_train = [f"{pair}_{year}" for pair in pair_core for year in sorted(set(train_years))]
     mejor = max(candidatos, key=lambda item: resumir_resultados(item["dataset_results"], datasets_train)["avg_score"])
     return mejor["params"]
 
@@ -545,15 +559,17 @@ def seleccionar_parametros_finales(
 def preparar_comparativa_final(
     top_walkforward: list[dict[str, object]],
     deep_results: list[dict[str, object]],
+    pair_core: list[str],
+    final_datasets: list[dict[str, object]],
+    train_years: list[int],
     spread_pips: float,
     workers: int,
 ) -> list[dict[str, object]]:
     estrategias = [item["strategy_name"] for item in top_walkforward[:3]]
-    datasets = construir_datasets(PARES_AMPLIADOS, [2025])
     tareas = []
     for indice, strategy_name in enumerate(estrategias, start=1):
-        parametros = seleccionar_parametros_finales(deep_results, strategy_name, PARES_NUCLEO)
-        tareas.append(("validacion_final", strategy_name, indice, parametros, datasets, spread_pips))
+        parametros = seleccionar_parametros_finales(deep_results, strategy_name, pair_core, train_years)
+        tareas.append(("validacion_final", strategy_name, indice, parametros, final_datasets, spread_pips))
 
     resultados = []
     if min(workers, len(tareas)) <= 1:
@@ -582,6 +598,14 @@ def serializar(objeto):
             return None
         return round(objeto, 6)
     return objeto
+
+
+def parse_csv_list(texto: str) -> list[str]:
+    return [item.strip().upper() for item in texto.split(",") if item.strip()]
+
+
+def parse_years(texto: str) -> list[int]:
+    return sorted({int(item.strip()) for item in texto.split(",") if item.strip()})
 
 
 def escribir_reporte_markdown(
@@ -711,13 +735,23 @@ def main():
     parser.add_argument("--screen-candidates", type=int, default=8)
     parser.add_argument("--deep-candidates", type=int, default=24)
     parser.add_argument("--report-name", type=str, default=datetime.now().strftime("%Y%m%d_%H%M%S"))
+    parser.add_argument("--pairs-core", type=str, default="EURUSD,GBPUSD,USDJPY")
+    parser.add_argument("--pairs-expanded", type=str, default="EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD")
+    parser.add_argument("--screen-years", type=str, default="2024,2025")
+    parser.add_argument("--deep-years", type=str, default="2021,2022,2023,2024,2025")
+    parser.add_argument("--final-years", type=str, default="2025")
     args = parser.parse_args()
 
     workers = max(1, args.workers)
+    pairs_core = parse_csv_list(args.pairs_core)
+    pairs_expanded = parse_csv_list(args.pairs_expanded)
+    screen_years = parse_years(args.screen_years)
+    deep_years = parse_years(args.deep_years)
+    final_years = parse_years(args.final_years)
     report_dir = ROOT / "reports" / "strategy_research" / args.report_name
     report_dir.mkdir(parents=True, exist_ok=True)
 
-    screen_datasets = construir_datasets(PARES_NUCLEO, [2024, 2025])
+    screen_datasets = construir_datasets(pairs_core, screen_years)
     all_strategy_names = list(CONFIGURACION_ESTRATEGIAS.keys())
 
     screening = ejecutar_fase(
@@ -731,7 +765,7 @@ def main():
     )
 
     top_strategy_names = mejores_estrategias(screening, limite=4)
-    deep_datasets = construir_datasets(PARES_NUCLEO, [2021, 2022, 2023, 2024, 2025])
+    deep_datasets = construir_datasets(pairs_core, deep_years)
 
     deep_results = ejecutar_fase(
         phase_name="deep_search",
@@ -743,21 +777,32 @@ def main():
         seed_base=9_000,
     )
 
-    walkforward = analizar_walk_forward(deep_results, PARES_NUCLEO)
-    comparativa_final = preparar_comparativa_final(walkforward, deep_results, args.spread_pips, workers)
+    walkforward = analizar_walk_forward(deep_results, pairs_core, deep_years)
+    final_datasets = construir_datasets(pairs_expanded, final_years)
+    comparativa_final = preparar_comparativa_final(
+        walkforward,
+        deep_results,
+        pairs_core,
+        final_datasets,
+        deep_years[:-1],
+        args.spread_pips,
+        workers,
+    )
 
     metadata = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "spread_pips": args.spread_pips,
-        "pairs_core": PARES_NUCLEO,
-        "pairs_expanded": PARES_AMPLIADOS,
-        "core_years": [2021, 2022, 2023, 2024, 2025],
+        "pairs_core": pairs_core,
+        "pairs_expanded": pairs_expanded,
+        "screen_years": screen_years,
+        "core_years": deep_years,
+        "final_years": final_years,
         "screen_candidates": args.screen_candidates,
         "deep_candidates": args.deep_candidates,
         "backtests_executed": (
             len(screening) * len(screen_datasets)
             + len(deep_results) * len(deep_datasets)
-            + len(comparativa_final) * len(construir_datasets(PARES_AMPLIADOS, [2025]))
+            + len(comparativa_final) * len(final_datasets)
         ),
     }
 
