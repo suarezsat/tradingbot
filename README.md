@@ -2,103 +2,106 @@
 
 Aplicacion local de backtesting para estrategias de trading Forex construida con Python, Streamlit, `backtesting.py`, pandas, numpy y Plotly.
 
-## Que hace esta app
+La app funciona completamente offline una vez instaladas las dependencias y esta pensada para cargar datos historicos reales en CSV o ZIP, ejecutar backtests, guardar resultados y entrenar lectura de mercado en modo manual.
 
-- Carga archivos CSV, TXT y ZIP desde la interfaz.
-- Permite seleccionar archivos directamente desde una carpeta local dentro de la app.
-- Detecta automaticamente formatos de HistData.com, Dukascopy y MetaTrader.
-- Expande ZIP compatibles de forma automatica.
-- Ejecuta backtests con 3 estrategias incluidas.
-- Procesa varios archivos en un mismo lote.
-- Muestra resultados individuales por archivo y un resumen comparativo final.
-- Guarda lotes de backtesting en local para consultarlos despues.
-- Permite ajustar stop loss, take profit, riesgo por operacion, trailing stop, capital inicial, numero maximo de operaciones y filtro horario por sesion.
-- Muestra metricas de rendimiento y graficos interactivos.
-- Funciona completamente offline una vez instaladas las dependencias.
+## Que incluye esta version
+
+- Selector inicial de versiones `1.0`, `1.1` y `1.3`.
+- Version `1.0` con flujo clasico de un archivo y tres estrategias base.
+- Version `1.1` con Inicio, Nuevo backtest y Guardados.
+- Version `1.3` con:
+  - backtesting avanzado
+  - lector de graficas para trading manual
+  - mas estrategias integradas
+  - creador de estrategias personalizadas guardables
+- Carga de archivos desde la interfaz y tambien desde una carpeta local configurada dentro de la app.
+- Soporte para lotes multiarchivo con resultados individuales y resumen global comparativo.
+- Guardado local de backtests para revisarlos despues.
 
 ## Estructura del proyecto
 
 ```text
-backtester_forex/
-├── app.py
-├── estrategias.py
-├── procesador_datos.py
-├── metricas.py
-├── requirements.txt
-└── README.md
+tradingbot/
+|-- app.py
+|-- estrategias.py
+|-- procesador_datos.py
+|-- metricas.py
+|-- almacen_backtests.py
+|-- almacen_estrategias.py
+|-- requirements.txt
+|-- README.md
+|-- assets/
+|   `-- capturas/
+|-- backtests_guardados/
+`-- estrategias_guardadas/
 ```
 
 ## Requisitos previos
 
-- Windows, macOS o Linux
 - Python 3.11 o superior
 - `pip` disponible en la terminal
+- Windows, macOS o Linux
 
 ## Instalacion paso a paso
 
 ### 1. Instalar Python
 
-Si no tienes Python instalado:
+Si todavia no tienes Python:
 
-1. Ve a la pagina oficial de Python: https://www.python.org/downloads/
-2. Descarga una version 3.11 o superior.
-3. Durante la instalacion, marca la opcion **Add Python to PATH**.
-4. Termina la instalacion y cierra el instalador.
+1. Entra en [python.org/downloads](https://www.python.org/downloads/).
+2. Instala una version 3.11 o superior.
+3. En Windows, marca la opcion `Add Python to PATH` durante la instalacion.
 
-Para comprobarlo, abre una terminal y ejecuta:
+Compruebalo con:
 
-```bash
+```powershell
 python --version
 ```
 
-### 2. Abrir una terminal en la carpeta del proyecto
+### 2. Abrir la carpeta del proyecto
 
-Colocate dentro de la carpeta `backtester_forex`.
-
-Ejemplo en Windows PowerShell:
+En PowerShell:
 
 ```powershell
-cd C:\ruta\hasta\backtester_forex
+cd C:\ruta\hasta\tradingbot
 ```
 
 ### 3. Instalar dependencias
 
-Ejecuta este comando:
+Ejecuta:
 
-```bash
-pip install -r requirements.txt
+```powershell
+python -m pip install -r requirements.txt
 ```
-
-Esto instalara todo lo necesario para usar la aplicacion sin internet despues.
 
 ### 4. Lanzar la aplicacion
 
 Ejecuta:
 
-```bash
-streamlit run app.py
+```powershell
+python -m streamlit run app.py
 ```
 
-Se abrira una app local en tu navegador.
+Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit` no esta en el `PATH`.
 
 ## Uso rapido
 
-1. Abre la app.
-2. En la pestana **Nuevo backtest**, elige archivos desde la carpeta local o subelos manualmente.
-3. Puedes mezclar varios CSV y ZIP en el mismo lote.
-4. Elige una de las 3 estrategias disponibles.
-5. Ajusta los parametros de la estrategia y la gestion de riesgo.
-6. Pulsa **Ejecutar lote de backtesting**.
-7. Revisa el **Resumen global** y las pestanas individuales de cada archivo.
-8. Si quieres, guarda el lote para verlo despues en la pestana **Guardados**.
+1. Abre la app en el navegador.
+2. Elige la version con la que quieres entrar.
+3. En `Nuevo backtest`, selecciona archivos desde tu carpeta local o subelos manualmente.
+4. Puedes mezclar varios `CSV`, `TXT` y `ZIP` compatibles en el mismo lote.
+5. Elige una estrategia y ajusta parametros y gestion de riesgo.
+6. Ejecuta el lote.
+7. Revisa el resumen global y cada dataset en su propia pestana.
+8. Si quieres, guarda el lote para recuperarlo despues en `Guardados`.
 
-## Formatos CSV compatibles
+## Formatos de entrada compatibles
 
 ### HistData.com
 
 - Columnas: `DateTime;Open;High;Low;Close;Volume`
 - Fecha: `YYYYMMDD HHMMSS`
-- Tambien se soporta la variante sin cabecera que empieza directamente con las velas.
+- Tambien soporta la variante sin cabecera.
 
 ### Dukascopy
 
@@ -108,42 +111,100 @@ Se abrira una app local en tu navegador.
 ### MetaTrader (MT4/MT5)
 
 - Columnas: `Date,Time,Open,High,Low,Close,Volume`
-- Separador: tabulacion o coma
+- Separador: coma o tabulacion
 
 ### ZIP
 
-- Puedes subir o seleccionar archivos `.zip`.
-- La app buscara dentro del ZIP archivos `.csv` o `.txt` compatibles y los procesara automaticamente.
+- La app puede abrir `.zip` directamente.
+- Si dentro encuentra archivos `.csv` o `.txt` compatibles, los expande y procesa automaticamente.
 
 ## Estrategias incluidas
 
-### 1. Cruce de Medias Moviles
+### Base de la version 1.0 y 1.1
 
-- Compra: EMA rapida cruza hacia arriba la EMA lenta
-- Venta: EMA rapida cruza hacia abajo la EMA lenta
+- Cruce de Medias Moviles
+- RSI con niveles
+- Bollinger + RSI
 
-### 2. RSI con niveles
+### Estrategias extra de la version 1.3
 
-- Compra: RSI cruza hacia arriba el nivel de sobreventa
-- Venta: RSI cruza hacia abajo el nivel de sobrecompra
+- MACD clasico
+- Donchian Breakout
+- EMA + RSI tendencia
+- Estocastico extremo
 
-### 3. Bollinger + RSI
+## Estrategias personalizadas
 
-- Compra: el precio toca la banda inferior y el RSI esta por debajo de 40
-- Venta: el precio toca la banda superior y el RSI esta por encima de 60
+La version `1.3` incluye una seccion `Estrategias` donde puedes:
+
+- elegir una plantilla base
+- ajustar sus parametros
+- guardarla con nombre y descripcion
+- reutilizarla luego en el backtester
+- eliminarla cuando ya no la necesites
+
+Las estrategias guardadas se almacenan localmente en `estrategias_guardadas/`.
+
+## Trading manual
+
+La version `1.3` incluye una vista `Trading manual` para:
+
+- cargar un dataset unico desde carpeta local o subida manual
+- avanzar vela a vela
+- abrir compras y ventas manuales
+- cerrar operaciones manualmente o por niveles
+- revisar capital, curva de equity, drawdown y registro de trades
+
+## Gestion de riesgo configurable
+
+Desde la interfaz puedes ajustar:
+
+- Stop Loss en pips
+- Take Profit en pips
+- Riesgo por operacion en porcentaje
+- Capital inicial
+- Maximo de operaciones abiertas
+- Filtro horario por sesion
+- Trailing stop
+
+## Resultados y graficos
+
+La app muestra:
+
+- rentabilidad total
+- numero total de operaciones
+- win rate
+- ratio riesgo/recompensa real
+- drawdown maximo
+- Sharpe Ratio
+- Profit Factor
+- mejor y peor operacion
+- duracion media
+
+Tambien dibuja:
+
+- grafico de velas con entradas y salidas
+- curva de equity
+- grafico de drawdown
+- histograma de resultados por operacion
+
+## Guardados locales
+
+- Los backtests guardados se almacenan en `backtests_guardados/`.
+- Las estrategias personalizadas se almacenan en `estrategias_guardadas/`.
+- Todo el flujo principal funciona sin conexion una vez hechas las instalaciones.
 
 ## Notas importantes
 
-- El filtro por sesiones usa la hora del CSV tal como viene en el archivo y asume que esta en UTC.
+- El filtro por sesiones usa la hora del CSV tal como viene en el archivo y asume UTC.
 - El tamano de pip se infiere automaticamente segun el precio medio del instrumento.
-- La app esta pensada para pares Forex. Si usas instrumentos no Forex o cruces exoticos, revisa los resultados con criterio.
-- Si el CSV tiene un formato invalido, la interfaz mostrara un mensaje claro con el problema detectado.
-- Los backtests guardados se almacenan en la carpeta `backtests_guardados`.
+- La app esta pensada para Forex. Si pruebas otros mercados, revisa los resultados con criterio.
+- Si el archivo tiene un formato invalido, la interfaz mostrara un mensaje de error claro.
 
-## Comando para lanzar la app
+## Comando exacto para arrancar
 
-Desde la carpeta `backtester_forex`, ejecuta:
+Desde la carpeta del proyecto, ejecuta exactamente:
 
-```bash
-streamlit run app.py
+```powershell
+python -m streamlit run app.py
 ```

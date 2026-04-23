@@ -69,6 +69,16 @@ RUTA_APP = Path(__file__).resolve().parent
 RUTA_CAPTURAS = RUTA_APP / "assets" / "capturas"
 APALANCAMIENTO_POR_DEFECTO = 30.0
 EXTENSIONES_CARPETA = {".csv", ".zip"}
+DIRECTORIOS_EXCLUIDOS_BIBLIOTECA = {
+    ".git",
+    ".playwright-cli",
+    ".streamlit",
+    ".venv",
+    "__pycache__",
+    "env",
+    "node_modules",
+    "venv",
+}
 SESIONES_TRADING = {
     "Sin filtro": (-1, -1),
     "Londres (08:00 - 17:00 UTC)": (8, 17),
@@ -678,12 +688,16 @@ def listar_archivos_locales(carpeta: str) -> tuple[list[dict[str, object]], str 
         if not archivo.is_file():
             continue
 
+        relativo_path = archivo.relative_to(ruta)
+        if any(parte in DIRECTORIOS_EXCLUIDOS_BIBLIOTECA for parte in relativo_path.parts[:-1]):
+            continue
+
         extension = archivo.suffix.lower()
         if extension not in EXTENSIONES_CARPETA:
             continue
 
         tamano_mb = archivo.stat().st_size / (1024 * 1024)
-        relativo = archivo.relative_to(ruta).as_posix()
+        relativo = relativo_path.as_posix()
         etiqueta = f"{relativo}  |  {extension.replace('.', '').upper()}  |  {tamano_mb:.2f} MB"
 
         archivos.append(
