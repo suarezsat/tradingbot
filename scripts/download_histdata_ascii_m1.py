@@ -194,6 +194,20 @@ def save_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def save_error_metadata(target_dir: Path, pair: PairInfo, entry: EntryInfo, message: str) -> None:
+    payload = {
+        "pair_code": pair.code,
+        "pair_display": pair.display,
+        "order": pair.order,
+        "entry_kind": entry.kind,
+        "year": entry.year,
+        "month": entry.month,
+        "label": entry.label,
+        "error": message,
+    }
+    save_json(target_dir / "_entry_error.json", payload)
+
+
 def build_inventory(client: HistDataClient, pair_limit: int | None = None, pair_codes: set[str] | None = None) -> tuple[list[PairInfo], dict[str, list[EntryInfo]]]:
     root_html = client.get_text(PAIR_LIST_URL)
     pairs = parse_pairs(root_html)
@@ -218,6 +232,7 @@ def download_entry(
     entry: EntryInfo,
     extract_zip: bool,
     overwrite: bool,
+    retries: int = 3,
 ) -> None:
     target_dir = ensure_dir(entry_root(base_dir, pair, entry))
     final_url = urllib.parse.urljoin(BASE_URL, entry.href)
@@ -235,13 +250,21 @@ def download_entry(
         return
 
     download_meta = payload["download"]
-    zip_bytes = client.post_bytes(
-        url=str(download_meta["action"]),
-        data=dict(download_meta["fields"]),
-        referer=final_url,
-    )
+    zip_bytes = b""
+    last_error: str | None = None
+    for attempt in range(1, retries + 1):
+        zip_bytes = client.post_bytes(
+            url=str(download_meta["action"]),
+            data=dict(download_meta["fields"]),
+            referer=final_url,
+        )
+        if zip_bytes:
+            break
+        last_error = f"HistData devolvio un ZIP vacio para {pair.code} {entry.label} (intento {attempt}/{retries})."
+        time.sleep(max(client.sleep_seconds, 0.5))
+
     if not zip_bytes:
-        raise RuntimeError(f"HistData devolvio un ZIP vacio para {pair.code} {entry.label}.")
+        raise RuntimeError(last_error or f"HistData devolvio un ZIP vacio para {pair.code} {entry.label}.")
     zip_path.write_bytes(zip_bytes)
 
     status_meta = payload.get("status")
@@ -329,14 +352,20 @@ def main() -> int:
             continue
 
         for entry in pair_entries:
-            download_entry(
-                client=client,
-                base_dir=root_dir,
-                pair=pair,
-                entry=entry,
-                extract_zip=not args.no_extract,
-                overwrite=args.overwrite,
-            )
+            try:
+                download_entry(
+                    client=client,
+                    base_dir=root_dir,
+                    pair=pair,
+                    entry=entry,
+                    extract_zip=not args.no_extract,
+                    overwrite=args.overwrite,
+                )
+            except Exception as exc:
+                target_dir = ensure_dir(entry_root(root_dir, pair, entry))
+                save_error_metadata(target_dir, pair, entry, str(exc))
+                print(f"[error] {pair.code} {entry.label} -> {exc}", flush=True)
+                continue
 
     print(f"Inventario guardado en: {root_dir / '_inventory.json'}", flush=True)
     if not args.inventory_only:
