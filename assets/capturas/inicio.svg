@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <rect width="1280" height="760" fill="#f6f2ea"/>
+  <rect x="60" y="48" width="1160" height="180" rx="28" fill="#163c39"/>
+  <circle cx="1110" cy="140" r="120" fill="#d8b36a" opacity="0.55"/>
+  <text x="100" y="116" fill="#f8f6f1" font-family="Georgia, serif" font-size="52">Backtester Forex</text>
+  <text x="100" y="165" fill="#eff1ea" font-family="Arial, sans-serif" font-size="24">Portada minimalista con biblioteca local, guardados y acceso rapido al laboratorio.</text>
+  <rect x="60" y="270" width="360" height="160" rx="24" fill="#ffffff" stroke="#d9d0c0"/>
+  <rect x="460" y="270" width="360" height="160" rx="24" fill="#ffffff" stroke="#d9d0c0"/>
+  <rect x="860" y="270" width="360" height="160" rx="24" fill="#ffffff" stroke="#d9d0c0"/>
+  <text x="92" y="322" fill="#163c39" font-family="Georgia, serif" font-size="30">Biblioteca</text>
+  <text x="92" y="360" fill="#596664" font-family="Arial, sans-serif" font-size="22">CSV y ZIP listos para seleccionar.</text>
+  <text x="492" y="322" fill="#163c39" font-family="Georgia, serif" font-size="30">Guardados</text>
+  <text x="492" y="360" fill="#596664" font-family="Arial, sans-serif" font-size="22">Resumen de lotes anteriores.</text>
+  <text x="892" y="322" fill="#163c39" font-family="Georgia, serif" font-size="30">Comparacion</text>
+  <text x="892" y="360" fill="#596664" font-family="Arial, sans-serif" font-size="22">Resultados por archivo y global.</text>
+  <rect x="60" y="474" width="560" height="210" rx="28" fill="#fffefb" stroke="#d9d0c0"/>
+  <rect x="660" y="474" width="560" height="210" rx="28" fill="#fffefb" stroke="#d9d0c0"/>
+  <text x="96" y="530" fill="#163c39" font-family="Georgia, serif" font-size="34">Biblioteca local</text>
+  <text x="96" y="570" fill="#596664" font-family="Arial, sans-serif" font-size="22">DataParaBot/EURUSD_2016.zip</text>
+  <text x="96" y="606" fill="#596664" font-family="Arial, sans-serif" font-size="22">DataParaBot/GBPUSD_2020.csv</text>
+  <text x="96" y="642" fill="#596664" font-family="Arial, sans-serif" font-size="22">DataParaBot/USDJPY_Q1.zip</text>
+  <text x="696" y="530" fill="#163c39" font-family="Georgia, serif" font-size="34">Ultimos backtests</text>
+  <text x="696" y="570" fill="#596664" font-family="Arial, sans-serif" font-size="22">Lote EMA 2026-04-21 18:35</text>
+  <text x="696" y="606" fill="#596664" font-family="Arial, sans-serif" font-size="22">Lote RSI 2026-04-20 21:10</text>
+  <text x="696" y="642" fill="#596664" font-family="Arial, sans-serif" font-size="22">Lote Bollinger 2026-04-18 09:42</text>
+</svg>

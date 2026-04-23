@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <rect width="1280" height="760" fill="#f6f3ed"/>
+  <rect x="52" y="48" width="1176" height="70" rx="22" fill="#ffffff" stroke="#d9d0c0"/>
+  <text x="92" y="91" fill="#163c39" font-family="Georgia, serif" font-size="34">Resumen global | EURUSD_2016 | GBPUSD_2021 | USDJPY_Q1</text>
+  <rect x="52" y="146" width="1176" height="128" rx="24" fill="#163c39"/>
+  <text x="92" y="198" fill="#f7f5f0" font-family="Georgia, serif" font-size="36">Resultados por archivo y comparativa final</text>
+  <text x="92" y="240" fill="#e9ece4" font-family="Arial, sans-serif" font-size="24">Cada dataset tiene su propia pestana y un resumen final muestra el lote completo.</text>
+  <rect x="52" y="308" width="560" height="190" rx="24" fill="#ffffff" stroke="#d9d0c0"/>
+  <rect x="668" y="308" width="560" height="190" rx="24" fill="#ffffff" stroke="#d9d0c0"/>
+  <text x="88" y="360" fill="#163c39" font-family="Georgia, serif" font-size="32">Tabla comparativa</text>
+  <line x1="88" y1="388" x2="574" y2="388" stroke="#d9d0c0"/>
+  <text x="88" y="426" fill="#596664" font-family="Arial, sans-serif" font-size="22">EURUSD_2016     12.4%     58 ops     54.2%</text>
+  <text x="88" y="460" fill="#596664" font-family="Arial, sans-serif" font-size="22">GBPUSD_2021      8.1%     42 ops     51.6%</text>
+  <text x="88" y="494" fill="#596664" font-family="Arial, sans-serif" font-size="22">USDJPY_Q1        5.7%     31 ops     48.4%</text>
+  <text x="704" y="360" fill="#163c39" font-family="Georgia, serif" font-size="32">Curvas de equity</text>
+  <polyline points="706,470 770,438 834,450 898,390 962,360 1026,372 1090,320 1154,298" fill="none" stroke="#225ea8" stroke-width="6"/>
+  <polyline points="706,490 770,474 834,456 898,432 962,446 1026,404 1090,382 1154,364" fill="none" stroke="#b6853f" stroke-width="6"/>
+  <rect x="52" y="532" width="1176" height="176" rx="24" fill="#fffefb" stroke="#d9d0c0"/>
+  <text x="88" y="586" fill="#163c39" font-family="Georgia, serif" font-size="32">Detalle individual</text>
+  <text x="88" y="626" fill="#596664" font-family="Arial, sans-serif" font-size="22">Graficos de velas, equity, drawdown, histograma y tabla de operaciones para cada archivo.</text>
+  <text x="88" y="662" fill="#596664" font-family="Arial, sans-serif" font-size="22">Ademas puedes guardar el lote completo como JSON y revisarlo despues desde la portada.</text>
+</svg>

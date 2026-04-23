@@ -1,0 +1,5 @@
+streamlit
+backtesting
+pandas
+numpy
+plotly

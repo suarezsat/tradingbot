@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <rect width="1280" height="760" fill="#faf7f1"/>
+  <rect x="52" y="52" width="500" height="656" rx="28" fill="#ffffff" stroke="#dccfb8"/>
+  <rect x="594" y="52" width="634" height="656" rx="28" fill="#ffffff" stroke="#dccfb8"/>
+  <text x="92" y="114" fill="#163c39" font-family="Georgia, serif" font-size="38">Fuentes de datos</text>
+  <rect x="92" y="150" width="420" height="58" rx="16" fill="#f3efe7"/>
+  <text x="118" y="187" fill="#596664" font-family="Arial, sans-serif" font-size="22">C:\Users\ferna\OneDrive\Documentos\DataParaBot</text>
+  <rect x="92" y="238" width="420" height="76" rx="18" fill="#f7f4ed" stroke="#d9d0c0"/>
+  <text x="118" y="285" fill="#163c39" font-family="Arial, sans-serif" font-size="24">HISTDATA_COM_ASCII_EURUSD_M12016.zip</text>
+  <rect x="92" y="334" width="420" height="76" rx="18" fill="#f7f4ed" stroke="#d9d0c0"/>
+  <text x="118" y="381" fill="#163c39" font-family="Arial, sans-serif" font-size="24">GBPUSD_M5_2021.csv</text>
+  <rect x="92" y="442" width="420" height="136" rx="20" fill="#163c39"/>
+  <text x="118" y="492" fill="#f7f5f0" font-family="Georgia, serif" font-size="30">Subida manual</text>
+  <text x="118" y="538" fill="#eff1ea" font-family="Arial, sans-serif" font-size="22">Arrastra CSV, TXT o ZIP compatibles.</text>
+  <text x="634" y="114" fill="#163c39" font-family="Georgia, serif" font-size="38">Configuracion del lote</text>
+  <rect x="634" y="150" width="554" height="86" rx="20" fill="#f4efe5" stroke="#d9d0c0"/>
+  <text x="664" y="202" fill="#163c39" font-family="Arial, sans-serif" font-size="28">Estrategia: Cruce de Medias Moviles</text>
+  <rect x="634" y="266" width="554" height="52" rx="16" fill="#f8f5ee"/>
+  <rect x="634" y="340" width="554" height="52" rx="16" fill="#f8f5ee"/>
+  <rect x="634" y="414" width="554" height="52" rx="16" fill="#f8f5ee"/>
+  <rect x="634" y="488" width="554" height="52" rx="16" fill="#f8f5ee"/>
+  <text x="662" y="299" fill="#596664" font-family="Arial, sans-serif" font-size="23">Stop Loss, Take Profit y riesgo por operacion</text>
+  <text x="662" y="373" fill="#596664" font-family="Arial, sans-serif" font-size="23">Capital inicial, maximo de operaciones y sesion</text>
+  <text x="662" y="447" fill="#596664" font-family="Arial, sans-serif" font-size="23">Trailing stop y parametros de estrategia</text>
+  <rect x="634" y="586" width="554" height="88" rx="22" fill="#b6853f"/>
+  <text x="826" y="640" text-anchor="middle" fill="#fffef8" font-family="Georgia, serif" font-size="34">Ejecutar lote</text>
+</svg>

@@ -1,0 +1,54 @@
+{
+  "nombre_lote": "Lote 2026-04-22 19:23",
+  "fecha_guardado": "2026-04-22T19:25:12",
+  "estrategia": "Bollinger + RSI",
+  "parametros": {
+    "bollinger_periodo": 20,
+    "desviaciones": 2.0,
+    "rsi_periodo": 14,
+    "stop_loss_pips": 20,
+    "take_profit_pips": 40,
+    "risk_per_trade": 1.0,
+    "max_open_trades": 1,
+    "session_start": -1,
+    "session_end": -1,
+    "usar_trailing_stop": false,
+    "trailing_stop_pips": 20,
+    "capital_inicial": 10000.0,
+    "leverage": 30.0
+  },
+  "resumen_global": {
+    "archivos_totales": 1,
+    "archivos_exitosos": 1,
+    "archivos_fallidos": 0,
+    "operaciones_totales": 8982,
+    "rentabilidad_media": 371.2878923999988,
+    "win_rate_medio": 64.95212647517256,
+    "mejor_archivo": "HISTDATA_COM_ASCII_EURUSD_M12016.zip / DAT_ASCII_EURUSD_M1_2016.csv",
+    "peor_drawdown": -18.471984622307712
+  },
+  "archivos": [
+    {
+      "archivo": "HISTDATA_COM_ASCII_EURUSD_M12016.zip / DAT_ASCII_EURUSD_M1_2016.csv",
+      "origen": "Carpeta local / ZIP",
+      "ruta": "C:\\Users\\ferna\\OneDrive\\Documentos\\DataParaBot\\HISTDATA_COM_ASCII_EURUSD_M12016.zip::DAT_ASCII_EURUSD_M1_2016.csv",
+      "formato": "HistData.com",
+      "velas": 372679,
+      "inicio": "2016-01-03T17:00:00",
+      "fin": "2016-12-30T16:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 371.2878923999988,
+        "total_operaciones": 8982,
+        "win_rate": 64.95212647517256,
+        "ratio_rr_real": 0.6226552255438165,
+        "drawdown_maximo": -18.471984622307712,
+        "sharpe_ratio": 2.122795871332337,
+        "profit_factor": 1.1434588853311234,
+        "mejor_operacion": 917.6288000000218,
+        "peor_operacion": -488.76360000001,
+        "duracion_media": "0 days 01:00:24.756179"
+      }
+    }
+  ]
+}
