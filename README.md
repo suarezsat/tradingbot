@@ -209,6 +209,34 @@ Desde la carpeta del proyecto, ejecuta exactamente:
 python -m streamlit run app.py
 ```
 
+## Descarga masiva de HistData
+
+El proyecto incluye un descargador para el catalogo `Generic ASCII / M1` de HistData:
+
+```powershell
+.\.venv\Scripts\python scripts\download_histdata_ascii_m1.py --root data\histdata_ascii_m1
+```
+
+Que hace:
+
+- recorre los 66 instrumentos en el mismo orden que la web
+- crea carpetas numeradas por par para conservar ese orden
+- organiza por `anio/full_year` o `anio/months/MM_Month`
+- descarga el ZIP
+- descarga el archivo de estado
+- extrae el CSV para poder usarlo directamente en la app
+- genera inventarios `_inventory.json`, `_pair.json` y `_entry.json`
+
+Ejemplos utiles:
+
+```powershell
+.\.venv\Scripts\python scripts\download_histdata_ascii_m1.py --inventory-only --root data\histdata_ascii_m1_catalog
+.\.venv\Scripts\python scripts\download_histdata_ascii_m1.py --pairs EURUSD,GBPUSD --root data\histdata_ascii_m1_fxmajors
+.\.venv\Scripts\python scripts\download_histdata_ascii_m1.py --pair-limit 3 --entry-limit-per-pair 2 --root data\histdata_ascii_m1_smoke
+```
+
+La carpeta `data/` esta ignorada por Git para no subir historicos masivos al repositorio.
+
 ## Publicacion en Cloudflare
 
 Este repo incluye configuracion para desplegar la app publica con Cloudflare Containers:
