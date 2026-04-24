@@ -1,0 +1,343 @@
+{
+  "metadata": {
+    "timestamp": "2026-04-24T09:49:46",
+    "pairs": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "USDCAD",
+      "AUDUSD",
+      "NZDUSD",
+      "EURJPY"
+    ],
+    "years": [
+      2024,
+      2025
+    ],
+    "spreads": [
+      0.5,
+      1.0
+    ],
+    "strategy_order": [
+      "Bollinger + RSI",
+      "RSI con niveles",
+      "Ruptura de sesion",
+      "Filtro porcentual"
+    ],
+    "candidate_pool_size": 6,
+    "seed_base": 1000
+  },
+  "runs": [
+    {
+      "spread": 0.5,
+      "results": [
+        {
+          "strategy_name": "Bollinger + RSI",
+          "candidate_index": 6,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "bollinger_periodo": 40,
+            "desviaciones": 2.5,
+            "rsi_periodo": 21
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 40.536267,
+            "avg_return": 45.450466,
+            "median_return": 14.320988,
+            "avg_drawdown": -24.400316,
+            "avg_profit_factor": 1.033343,
+            "avg_sharpe": 0.514586,
+            "avg_trades": 1696.3125
+          }
+        },
+        {
+          "strategy_name": "RSI con niveles",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "rsi_periodo": 21,
+            "nivel_sobrecompra": 80,
+            "nivel_sobreventa": 20
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 24.130963,
+            "avg_return": 12.12354,
+            "median_return": 10.634753,
+            "avg_drawdown": -20.854354,
+            "avg_profit_factor": 1.200863,
+            "avg_sharpe": 0.293267,
+            "avg_trades": 109.75
+          }
+        },
+        {
+          "strategy_name": "Filtro porcentual",
+          "candidate_index": 3,
+          "params": {
+            "stop_loss_pips": 25,
+            "take_profit_pips": 160,
+            "usar_trailing_stop": true,
+            "trailing_stop_pips": 8,
+            "session_label": "Asiatica",
+            "lookback": 20,
+            "filtro_porcentual": 0.16
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -11.421614,
+            "avg_return": 1.1275,
+            "median_return": 1.017291,
+            "avg_drawdown": -3.228869,
+            "avg_profit_factor": 1.604215,
+            "avg_sharpe": 0.055307,
+            "avg_trades": 23.8125
+          }
+        },
+        {
+          "strategy_name": "Filtro porcentual",
+          "candidate_index": 5,
+          "params": {
+            "stop_loss_pips": 40,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": true,
+            "trailing_stop_pips": 15,
+            "session_label": "Asiatica",
+            "lookback": 40,
+            "filtro_porcentual": 0.06
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -1.082698,
+            "avg_return": -0.506678,
+            "median_return": -0.876883,
+            "avg_drawdown": -5.66352,
+            "avg_profit_factor": 0.932919,
+            "avg_sharpe": -0.289245,
+            "avg_trades": 94.4375
+          }
+        },
+        {
+          "strategy_name": "Ruptura de sesion",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 30,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": true,
+            "trailing_stop_pips": 8,
+            "session_label": "Sin filtro",
+            "hora_inicio_utc": 8,
+            "minutos_rango": 30,
+            "hora_fin_operativa": 14,
+            "buffer_pips": 0.0
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -9.383135,
+            "avg_return": -3.8404,
+            "median_return": -2.317597,
+            "avg_drawdown": -8.436349,
+            "avg_profit_factor": 0.892917,
+            "avg_sharpe": -0.819369,
+            "avg_trades": 259.125
+          }
+        },
+        {
+          "strategy_name": "Ruptura de sesion",
+          "candidate_index": 2,
+          "params": {
+            "stop_loss_pips": 40,
+            "take_profit_pips": 120,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 15,
+            "session_label": "Sin filtro",
+            "hora_inicio_utc": 13,
+            "minutos_rango": 90,
+            "hora_fin_operativa": 16,
+            "buffer_pips": 0.0
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -8.273744,
+            "avg_return": -4.319833,
+            "median_return": -5.247981,
+            "avg_drawdown": -16.99888,
+            "avg_profit_factor": 0.890185,
+            "avg_sharpe": -0.4265,
+            "avg_trades": 147.3125
+          }
+        }
+      ]
+    },
+    {
+      "spread": 1.0,
+      "results": [
+        {
+          "strategy_name": "RSI con niveles",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "rsi_periodo": 21,
+            "nivel_sobrecompra": 80,
+            "nivel_sobreventa": 20
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 17.646335,
+            "avg_return": 8.585548,
+            "median_return": 7.405297,
+            "avg_drawdown": -21.804729,
+            "avg_profit_factor": 1.154994,
+            "avg_sharpe": 0.177913,
+            "avg_trades": 109.6875
+          }
+        },
+        {
+          "strategy_name": "Filtro porcentual",
+          "candidate_index": 3,
+          "params": {
+            "stop_loss_pips": 25,
+            "take_profit_pips": 160,
+            "usar_trailing_stop": true,
+            "trailing_stop_pips": 8,
+            "session_label": "Asiatica",
+            "lookback": 20,
+            "filtro_porcentual": 0.16
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -14.880679,
+            "avg_return": 0.646517,
+            "median_return": 0.473362,
+            "avg_drawdown": -3.438397,
+            "avg_profit_factor": 1.414972,
+            "avg_sharpe": -0.095893,
+            "avg_trades": 23.8125
+          }
+        },
+        {
+          "strategy_name": "Bollinger + RSI",
+          "candidate_index": 6,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "bollinger_periodo": 40,
+            "desviaciones": 2.5,
+            "rsi_periodo": 21
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -31.623316,
+            "avg_return": -1.533246,
+            "median_return": -18.775778,
+            "avg_drawdown": -35.158466,
+            "avg_profit_factor": 0.926328,
+            "avg_sharpe": -0.681168,
+            "avg_trades": 1702.375
+          }
+        },
+        {
+          "strategy_name": "Filtro porcentual",
+          "candidate_index": 5,
+          "params": {
+            "stop_loss_pips": 40,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": true,
+            "trailing_stop_pips": 15,
+            "session_label": "Asiatica",
+            "lookback": 40,
+            "filtro_porcentual": 0.06
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -5.230374,
+            "avg_return": -1.675395,
+            "median_return": -1.595883,
+            "avg_drawdown": -6.176494,
+            "avg_profit_factor": 0.868332,
+            "avg_sharpe": -0.523127,
+            "avg_trades": 94.4375
+          }
+        },
+        {
+          "strategy_name": "Ruptura de sesion",
+          "candidate_index": 2,
+          "params": {
+            "stop_loss_pips": 40,
+            "take_profit_pips": 120,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 15,
+            "session_label": "Sin filtro",
+            "hora_inicio_utc": 13,
+            "minutos_rango": 90,
+            "hora_fin_operativa": 16,
+            "buffer_pips": 0.0
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -11.58285,
+            "avg_return": -5.860533,
+            "median_return": -5.693821,
+            "avg_drawdown": -17.541355,
+            "avg_profit_factor": 0.870843,
+            "avg_sharpe": -0.53733,
+            "avg_trades": 147.1875
+          }
+        },
+        {
+          "strategy_name": "Ruptura de sesion",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 30,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": true,
+            "trailing_stop_pips": 8,
+            "session_label": "Sin filtro",
+            "hora_inicio_utc": 8,
+            "minutos_rango": 30,
+            "hora_fin_operativa": 14,
+            "buffer_pips": 0.0
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -20.625252,
+            "avg_return": -7.90548,
+            "median_return": -6.446749,
+            "avg_drawdown": -10.826306,
+            "avg_profit_factor": 0.779267,
+            "avg_sharpe": -1.624458,
+            "avg_trades": 259.125
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -101,6 +101,96 @@ def calcular_roc(valores, periodo: int):
     return roc.fillna(0.0).to_numpy()
 
 
+def calcular_atr(maximos, minimos, cierres, periodo: int):
+    """Calcula el Average True Range suavizado."""
+    high = pd.Series(maximos, dtype=float)
+    low = pd.Series(minimos, dtype=float)
+    close = pd.Series(cierres, dtype=float)
+    cierre_prev = close.shift(1)
+
+    true_range = pd.concat(
+        [
+            (high - low).abs(),
+            (high - cierre_prev).abs(),
+            (low - cierre_prev).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+
+    atr = true_range.ewm(alpha=1 / periodo, adjust=False, min_periods=periodo).mean()
+    return atr.bfill().fillna(0.0).to_numpy()
+
+
+def _calcular_componentes_adx(maximos, minimos, cierres, periodo: int) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Devuelve +DI, -DI y ADX para reutilizarlos en varias estrategias."""
+    high = pd.Series(maximos, dtype=float)
+    low = pd.Series(minimos, dtype=float)
+    close = pd.Series(cierres, dtype=float)
+
+    up_move = high.diff()
+    down_move = -low.diff()
+
+    plus_dm = pd.Series(
+        np.where((up_move > down_move) & (up_move > 0), up_move, 0.0),
+        index=high.index,
+    )
+    minus_dm = pd.Series(
+        np.where((down_move > up_move) & (down_move > 0), down_move, 0.0),
+        index=high.index,
+    )
+
+    atr = pd.Series(calcular_atr(high, low, close, periodo), index=high.index).replace(0, np.nan)
+    plus_dm_suavizado = plus_dm.ewm(alpha=1 / periodo, adjust=False, min_periods=periodo).mean()
+    minus_dm_suavizado = minus_dm.ewm(alpha=1 / periodo, adjust=False, min_periods=periodo).mean()
+
+    plus_di = 100 * (plus_dm_suavizado / atr)
+    minus_di = 100 * (minus_dm_suavizado / atr)
+    dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan))
+    adx = dx.ewm(alpha=1 / periodo, adjust=False, min_periods=periodo).mean()
+
+    plus_di = plus_di.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    minus_di = minus_di.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    adx = adx.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    return plus_di, minus_di, adx
+
+
+def calcular_plus_di(maximos, minimos, cierres, periodo: int):
+    """Calcula el indicador +DI."""
+    plus_di, _, _ = _calcular_componentes_adx(maximos, minimos, cierres, periodo)
+    return plus_di.to_numpy()
+
+
+def calcular_minus_di(maximos, minimos, cierres, periodo: int):
+    """Calcula el indicador -DI."""
+    _, minus_di, _ = _calcular_componentes_adx(maximos, minimos, cierres, periodo)
+    return minus_di.to_numpy()
+
+
+def calcular_adx(maximos, minimos, cierres, periodo: int):
+    """Calcula el Average Directional Index."""
+    _, _, adx = _calcular_componentes_adx(maximos, minimos, cierres, periodo)
+    return adx.to_numpy()
+
+
+def calcular_keltner_centro(cierres, periodo_ema: int):
+    """Media central del canal de Keltner."""
+    return calcular_ema(cierres, periodo_ema)
+
+
+def calcular_keltner_superior(maximos, minimos, cierres, periodo_ema: int, periodo_atr: int, multiplicador_atr: float):
+    """Banda superior de Keltner."""
+    centro = pd.Series(calcular_keltner_centro(cierres, periodo_ema), dtype=float)
+    atr = pd.Series(calcular_atr(maximos, minimos, cierres, periodo_atr), dtype=float)
+    return (centro + multiplicador_atr * atr).to_numpy()
+
+
+def calcular_keltner_inferior(maximos, minimos, cierres, periodo_ema: int, periodo_atr: int, multiplicador_atr: float):
+    """Banda inferior de Keltner."""
+    centro = pd.Series(calcular_keltner_centro(cierres, periodo_ema), dtype=float)
+    atr = pd.Series(calcular_atr(maximos, minimos, cierres, periodo_atr), dtype=float)
+    return (centro - multiplicador_atr * atr).to_numpy()
+
+
 @dataclass(frozen=True)
 class ParametroUI:
     """Describe un control de la interfaz asociado a una estrategia."""
@@ -616,6 +706,126 @@ class EstrategiaMomentumROC(EstrategiaBaseForex):
         )
 
 
+class EstrategiaMACDADX(EstrategiaBaseForex):
+    """Filtra cruces MACD usando fuerza tendencial medida por ADX."""
+
+    macd_rapido = 12
+    macd_lento = 26
+    macd_signal = 9
+    adx_periodo = 14
+    umbral_adx = 25
+    ema_tendencia = 200
+
+    def init(self):
+        self.macd = self.I(
+            calcular_macd,
+            self.data.Close,
+            int(self.macd_rapido),
+            int(self.macd_lento),
+        )
+        self.signal = self.I(
+            calcular_macd_signal,
+            self.data.Close,
+            int(self.macd_rapido),
+            int(self.macd_lento),
+            int(self.macd_signal),
+        )
+        self.adx = self.I(
+            calcular_adx,
+            self.data.High,
+            self.data.Low,
+            self.data.Close,
+            int(self.adx_periodo),
+        )
+        self.ema = self.I(calcular_ema, self.data.Close, int(self.ema_tendencia))
+
+    def _senal_compra(self) -> bool:
+        return bool(
+            crossover(self.macd, self.signal)
+            and self.adx[-1] >= float(self.umbral_adx)
+            and self.data.Close[-1] > self.ema[-1]
+        )
+
+    def _senal_venta(self) -> bool:
+        return bool(
+            crossover(self.signal, self.macd)
+            and self.adx[-1] >= float(self.umbral_adx)
+            and self.data.Close[-1] < self.ema[-1]
+        )
+
+
+class EstrategiaKeltnerRSI(EstrategiaBaseForex):
+    """Busca rupturas del canal de Keltner con confirmacion de RSI."""
+
+    ema_periodo = 20
+    atr_periodo = 20
+    multiplicador_atr = 1.5
+    rsi_periodo = 14
+    rsi_largo = 55
+    rsi_corto = 45
+
+    def init(self):
+        self.keltner_superior = self.I(
+            calcular_keltner_superior,
+            self.data.High,
+            self.data.Low,
+            self.data.Close,
+            int(self.ema_periodo),
+            int(self.atr_periodo),
+            float(self.multiplicador_atr),
+        )
+        self.keltner_inferior = self.I(
+            calcular_keltner_inferior,
+            self.data.High,
+            self.data.Low,
+            self.data.Close,
+            int(self.ema_periodo),
+            int(self.atr_periodo),
+            float(self.multiplicador_atr),
+        )
+        self.rsi = self.I(calcular_rsi, self.data.Close, int(self.rsi_periodo))
+
+    def _senal_compra(self) -> bool:
+        return bool(
+            self.data.Close[-2] <= self.keltner_superior[-2]
+            and self.data.Close[-1] > self.keltner_superior[-1]
+            and self.rsi[-1] >= float(self.rsi_largo)
+        )
+
+    def _senal_venta(self) -> bool:
+        return bool(
+            self.data.Close[-2] >= self.keltner_inferior[-2]
+            and self.data.Close[-1] < self.keltner_inferior[-1]
+            and self.rsi[-1] <= float(self.rsi_corto)
+        )
+
+
+class EstrategiaEMAFiltroDinamico(EstrategiaBaseForex):
+    """Reduce ruido exigiendo una separacion minima respecto a la EMA de tendencia."""
+
+    ema_tendencia = 100
+    umbral_entrada = 0.05
+
+    def init(self):
+        self.ema = self.I(calcular_ema, self.data.Close, int(self.ema_tendencia))
+
+    def _senal_compra(self) -> bool:
+        umbral = float(self.umbral_entrada) / 100.0
+        return bool(
+            self.ema[-1] > self.ema[-2]
+            and self.data.Close[-2] <= self.ema[-2] * (1.0 + umbral)
+            and self.data.Close[-1] > self.ema[-1] * (1.0 + umbral)
+        )
+
+    def _senal_venta(self) -> bool:
+        umbral = float(self.umbral_entrada) / 100.0
+        return bool(
+            self.ema[-1] < self.ema[-2]
+            and self.data.Close[-2] >= self.ema[-2] * (1.0 - umbral)
+            and self.data.Close[-1] < self.ema[-1] * (1.0 - umbral)
+        )
+
+
 CONFIGURACION_ESTRATEGIAS = {
     "Cruce de Medias Moviles": {
         "clase": EstrategiaCruceEMAs,
@@ -1046,6 +1256,164 @@ CONFIGURACION_ESTRATEGIAS = {
                 valor_defecto=200,
                 paso=1,
                 ayuda="EMA usada como filtro de sesgo principal.",
+            ),
+        ],
+    },
+    "MACD + ADX": {
+        "clase": EstrategiaMACDADX,
+        "descripcion": "Filtra cruces de MACD con ADX para evitar tendencias debiles.",
+        "parametros": [
+            ParametroUI(
+                clave="macd_rapido",
+                etiqueta="Periodo MACD rapido",
+                tipo="int",
+                valor_min=2,
+                valor_max=50,
+                valor_defecto=12,
+                paso=1,
+                ayuda="Periodo de la EMA rapida del MACD.",
+            ),
+            ParametroUI(
+                clave="macd_lento",
+                etiqueta="Periodo MACD lento",
+                tipo="int",
+                valor_min=5,
+                valor_max=100,
+                valor_defecto=26,
+                paso=1,
+                ayuda="Periodo de la EMA lenta del MACD.",
+            ),
+            ParametroUI(
+                clave="macd_signal",
+                etiqueta="Periodo linea de senal",
+                tipo="int",
+                valor_min=2,
+                valor_max=50,
+                valor_defecto=9,
+                paso=1,
+                ayuda="Suavizado de la linea de senal.",
+            ),
+            ParametroUI(
+                clave="adx_periodo",
+                etiqueta="Periodo ADX",
+                tipo="int",
+                valor_min=5,
+                valor_max=50,
+                valor_defecto=14,
+                paso=1,
+                ayuda="Numero de velas usado para medir la fuerza tendencial.",
+            ),
+            ParametroUI(
+                clave="umbral_adx",
+                etiqueta="Umbral ADX",
+                tipo="int",
+                valor_min=10,
+                valor_max=50,
+                valor_defecto=25,
+                paso=1,
+                ayuda="Fuerza minima requerida para validar la entrada.",
+            ),
+            ParametroUI(
+                clave="ema_tendencia",
+                etiqueta="Periodo EMA tendencia",
+                tipo="int",
+                valor_min=20,
+                valor_max=400,
+                valor_defecto=200,
+                paso=1,
+                ayuda="EMA usada para exigir alineacion con la tendencia principal.",
+            ),
+        ],
+    },
+    "Keltner + RSI": {
+        "clase": EstrategiaKeltnerRSI,
+        "descripcion": "Opera rupturas del canal de Keltner confirmadas por RSI.",
+        "parametros": [
+            ParametroUI(
+                clave="ema_periodo",
+                etiqueta="Periodo EMA central",
+                tipo="int",
+                valor_min=5,
+                valor_max=150,
+                valor_defecto=20,
+                paso=1,
+                ayuda="EMA central del canal de Keltner.",
+            ),
+            ParametroUI(
+                clave="atr_periodo",
+                etiqueta="Periodo ATR",
+                tipo="int",
+                valor_min=5,
+                valor_max=100,
+                valor_defecto=20,
+                paso=1,
+                ayuda="Periodo del ATR para el ancho del canal.",
+            ),
+            ParametroUI(
+                clave="multiplicador_atr",
+                etiqueta="Multiplicador ATR",
+                tipo="float",
+                valor_min=0.5,
+                valor_max=4.0,
+                valor_defecto=1.5,
+                paso=0.1,
+                ayuda="Anchura del canal medida en ATR.",
+            ),
+            ParametroUI(
+                clave="rsi_periodo",
+                etiqueta="Periodo RSI",
+                tipo="int",
+                valor_min=2,
+                valor_max=100,
+                valor_defecto=14,
+                paso=1,
+                ayuda="Periodo del RSI usado como confirmacion.",
+            ),
+            ParametroUI(
+                clave="rsi_largo",
+                etiqueta="RSI minimo largos",
+                tipo="int",
+                valor_min=40,
+                valor_max=90,
+                valor_defecto=55,
+                paso=1,
+                ayuda="RSI minimo para validar rupturas alcistas.",
+            ),
+            ParametroUI(
+                clave="rsi_corto",
+                etiqueta="RSI maximo cortos",
+                tipo="int",
+                valor_min=10,
+                valor_max=60,
+                valor_defecto=45,
+                paso=1,
+                ayuda="RSI maximo para validar rupturas bajistas.",
+            ),
+        ],
+    },
+    "EMA con filtro": {
+        "clase": EstrategiaEMAFiltroDinamico,
+        "descripcion": "Exige separacion minima respecto a una EMA para reducir ruido intradia.",
+        "parametros": [
+            ParametroUI(
+                clave="ema_tendencia",
+                etiqueta="Periodo EMA tendencia",
+                tipo="int",
+                valor_min=10,
+                valor_max=300,
+                valor_defecto=100,
+                paso=1,
+                ayuda="EMA que define la direccion y el nivel de referencia.",
+            ),
+            ParametroUI(
+                clave="umbral_entrada",
+                etiqueta="Umbral de entrada (%)",
+                tipo="float",
+                valor_min=0.01,
+                valor_max=1.0,
+                valor_defecto=0.05,
+                paso=0.01,
+                ayuda="Distancia porcentual minima respecto a la EMA para activar la operacion.",
             ),
         ],
     },

@@ -137,14 +137,17 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 ### Estrategias extra de la version 1.3 y 1.4
 
 - MACD clasico
+- MACD + ADX
 - Donchian Breakout
 - EMA + RSI tendencia
+- EMA con filtro
 - Estocastico extremo
 - Donchian + EMA
 - RSI2 con tendencia
 - Ruptura de sesion
 - Filtro porcentual
 - Momentum ROC
+- Keltner + RSI
 
 ## Estrategias personalizadas
 
@@ -270,15 +273,23 @@ La ultima investigacion completa que se genero en este repo esta en:
 
 ```text
 reports/strategy_research/full_research_spread05_20260423/
+reports/strategy_research/full_research_v2_2020_2025_spread05/
 ```
 
 Puedes endurecer o ampliar el estudio sin tocar el codigo usando tambien:
 
+- `--strategies`
 - `--pairs-core`
 - `--pairs-expanded`
 - `--screen-years`
 - `--deep-years`
 - `--final-years`
+
+Para comparar rapido finalistas concretos de un cribado sin relanzar toda la investigacion, tambien tienes:
+
+```powershell
+.\.venv\Scripts\python scripts\validate_strategy_candidates.py --workers 8 --strategy-order "Bollinger + RSI|RSI con niveles|Ruptura de sesion|Filtro porcentual" --candidate-specs "Bollinger + RSI:6|RSI con niveles:4" --pairs EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD,EURJPY --years 2024,2025 --spreads 0.5,0.75,1.0 --report-name validacion_dirigida
+```
 
 ## Publicacion en Cloudflare
 
@@ -324,15 +335,31 @@ Si tu cuenta esta en plan gratuito:
 
 ### Publicacion temporal con Cloudflare Tunnel
 
-Con la app corriendo en local:
+La forma mas comoda de dejar el puente publico vivo es usar el script del repo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\ensure_public_stack.ps1
+```
+
+Ese script:
+
+- arranca Streamlit en `127.0.0.1:8501` si no esta ya levantado
+- crea o reutiliza un tunnel rapido de Cloudflare
+- guarda los PID en `.streamlit.public.pid` y `.cf-tunnel.pid`
+- devuelve la URL local y la URL publica
+
+Para cerrarlo limpiamente:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\stop_public_stack.ps1
+```
+
+La configuracion de Streamlit para este modo publico esta en `.streamlit/config.toml`, con menos sobrecarga de recarga y compresion websocket activada.
+
+Si prefieres hacerlo manualmente:
 
 ```powershell
 python -m streamlit run app.py
-```
-
-puedes exponerla publicamente con:
-
-```powershell
 npx wrangler tunnel quick-start http://127.0.0.1:8501
 ```
 

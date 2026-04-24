@@ -105,7 +105,32 @@ ESPACIOS_ESTRATEGIA = {
         "umbral_roc": [0.02, 0.04, 0.06, 0.08, 0.12, 0.16, 0.2],
         "ema_tendencia": [50, 100, 150, 200, 300],
     },
+    "MACD + ADX": {
+        "macd_rapido": [6, 8, 12, 16],
+        "macd_lento": [18, 24, 26, 32, 40],
+        "macd_signal": [5, 9, 12],
+        "adx_periodo": [7, 10, 14, 20, 28],
+        "umbral_adx": [18, 20, 22, 25, 28, 30, 35],
+        "ema_tendencia": [50, 100, 150, 200, 300],
+    },
+    "Keltner + RSI": {
+        "ema_periodo": [10, 20, 30, 40],
+        "atr_periodo": [10, 14, 20, 30],
+        "multiplicador_atr": [1.0, 1.5, 2.0, 2.5],
+        "rsi_periodo": [7, 14, 21],
+        "rsi_largo": [52, 55, 58, 60, 65],
+        "rsi_corto": [35, 40, 42, 45, 48],
+    },
+    "EMA con filtro": {
+        "ema_tendencia": [20, 30, 50, 80, 100, 150, 200],
+        "umbral_entrada": [0.02, 0.04, 0.05, 0.08, 0.1, 0.12, 0.16],
+    },
 }
+
+
+def log_linea(texto: str) -> None:
+    """Fuerza el vaciado de stdout para ver progreso en tiempo real."""
+    print(texto, flush=True)
 
 
 def _valor_defecto_estrategia(nombre: str) -> dict[str, object]:
@@ -131,7 +156,15 @@ def _es_parametrizacion_valida(nombre: str, parametros: dict[str, object]) -> bo
         if parametros["macd_rapido"] >= parametros["macd_lento"]:
             return False
 
+    if nombre == "MACD + ADX":
+        if parametros["macd_rapido"] >= parametros["macd_lento"]:
+            return False
+
     if nombre == "EMA + RSI tendencia":
+        if parametros["rsi_corto"] >= parametros["rsi_largo"]:
+            return False
+
+    if nombre == "Keltner + RSI":
         if parametros["rsi_corto"] >= parametros["rsi_largo"]:
             return False
 
@@ -389,7 +422,7 @@ def construir_datasets(pairs: list[str], years: list[int]) -> list[dict[str, obj
 def construir_folds(pair_core: list[str], years: list[int]) -> list[dict[str, object]]:
     years = sorted(set(years))
     if len(years) < 3:
-        raise RuntimeError("Se necesitan al menos 3 anos para construir walk-forward.")
+        return []
 
     folds = []
     for idx in range(2, len(years)):
@@ -425,7 +458,7 @@ def ejecutar_fase(
             tareas.append((phase_name, strategy_name, candidate_index, parametros, datasets, spread_pips))
 
     resultados = []
-    print(
+    log_linea(
         f"[{phase_name}] Lanzando {len(tareas)} candidatos sobre {len(datasets)} datasets "
         f"({len(tareas) * len(datasets)} backtests)."
     )
@@ -435,7 +468,7 @@ def ejecutar_fase(
             resultado = evaluar_candidato(*tarea)
             resultados.append(resultado)
             resumen = resultado["summary"]
-            print(
+            log_linea(
                 f"[{phase_name}] {indice}/{len(tareas)} "
                 f"{resultado['strategy_name']} #{resultado['candidate_index']} "
                 f"score={resumen['avg_score']:.2f} "
@@ -453,7 +486,7 @@ def ejecutar_fase(
                 resultado = futuro.result()
                 resultados.append(resultado)
                 resumen = resultado["summary"]
-                print(
+                log_linea(
                     f"[{phase_name}] {indice}/{len(futuros)} "
                     f"{resultado['strategy_name']} #{resultado['candidate_index']} "
                     f"score={resumen['avg_score']:.2f} "
@@ -492,6 +525,8 @@ def analizar_walk_forward(
     years: list[int],
 ) -> list[dict[str, object]]:
     folds = construir_folds(pair_core, years)
+    if not folds:
+        return []
 
     top_candidates = mejores_por_estrategia(deep_results, por_estrategia=12)
     analisis = []
@@ -565,7 +600,7 @@ def preparar_comparativa_final(
     spread_pips: float,
     workers: int,
 ) -> list[dict[str, object]]:
-    estrategias = [item["strategy_name"] for item in top_walkforward[:3]]
+    estrategias = [item["strategy_name"] for item in top_walkforward[:5]]
     tareas = []
     for indice, strategy_name in enumerate(estrategias, start=1):
         parametros = seleccionar_parametros_finales(deep_results, strategy_name, pair_core, train_years)
@@ -608,6 +643,17 @@ def parse_years(texto: str) -> list[int]:
     return sorted({int(item.strip()) for item in texto.split(",") if item.strip()})
 
 
+def parse_strategies(valor: str | None) -> list[str]:
+    if not valor:
+        return list(CONFIGURACION_ESTRATEGIAS.keys())
+
+    estrategias = [item.strip() for item in valor.split(",") if item.strip()]
+    desconocidas = [item for item in estrategias if item not in CONFIGURACION_ESTRATEGIAS]
+    if desconocidas:
+        raise ValueError("Estrategias no reconocidas: " + ", ".join(desconocidas))
+    return estrategias
+
+
 def escribir_reporte_markdown(
     ruta: Path,
     metadata: dict[str, object],
@@ -620,6 +666,8 @@ def escribir_reporte_markdown(
     top_deep = deep_results[:10]
     mejor_walk = walkforward[0] if walkforward else None
     mejor_final = comparativa_final[0] if comparativa_final else None
+    folds_descripcion = ", ".join(item["fold"] for item in mejor_walk["folds"]) if mejor_walk else "N/D"
+    final_years_texto = ", ".join(str(year) for year in metadata["final_years"])
 
     lineas = [
         "# Investigacion de estrategias Forex",
@@ -630,13 +678,14 @@ def escribir_reporte_markdown(
         f"- Pares validacion final: {', '.join(metadata['pairs_expanded'])}",
         f"- Años nucleo: {', '.join(str(year) for year in metadata['core_years'])}",
         f"- Backtests ejecutados: {metadata['backtests_executed']}",
+        f"- Estrategias incluidas: {', '.join(metadata['strategy_names'])}",
         "",
         "## Protocolo",
         "",
         "- Cribado inicial de todas las estrategias con combinaciones aleatorias y costes de spread.",
         "- Busqueda profunda solo sobre las mejores familias.",
-        "- Seleccion con validacion walk-forward 2021-2022->2023, 2022-2023->2024 y 2023-2024->2025.",
-        "- Validacion final ampliada sobre 2025 en seis pares mayores.",
+        f"- Seleccion con validacion walk-forward sobre: {folds_descripcion}.",
+        f"- Validacion final ampliada sobre {final_years_texto} en {len(metadata['pairs_expanded'])} pares.",
         "",
         "## Fuentes externas usadas",
         "",
@@ -644,6 +693,9 @@ def escribir_reporte_markdown(
         "- Hsu, Taylor y Wang (2016), sobre muchas reglas, control del data snooping y validacion fuera de muestra: https://www.sciencedirect.com/science/article/pii/S0022199616300472",
         "- Neely y Weller (2003), sobre como la rentabilidad intradia desaparece facilmente al meter costes realistas: https://www.sciencedirect.com/science/article/pii/S0261560602001018",
         "- Holmberg, Lonnbark y Lundstrom (2013), como justificacion para probar una familia ORB/rango inicial: https://www.sciencedirect.com/science/article/pii/S1544612312000438",
+        "- Yao, Ma y He (2023), sobre filter rules, range breakouts, moving averages y Bollinger en 14 divisas: https://www.sciencedirect.com/science/article/pii/S1042444X23000270",
+        "- Papailias y Thomakos (2015), sobre una moving average mejorada con umbral dinamico: https://www.sciencedirect.com/science/article/pii/S0378437115001752",
+        "- Gurrib (2018), sobre ADX como market timing tool en pares USD: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3232982",
         "",
         "## Top del cribado inicial",
         "",
@@ -679,7 +731,7 @@ def escribir_reporte_markdown(
 
     for item in walkforward:
         lineas.append(
-            f"- {item['strategy_name']}: OOS medio {item['avg_oos_return']:.2f}%, score OOS {item['avg_oos_score']:.2f}, drawdown OOS {item['avg_oos_drawdown']:.2f}%, folds positivos {item['positive_folds']}/3."
+            f"- {item['strategy_name']}: OOS medio {item['avg_oos_return']:.2f}%, score OOS {item['avg_oos_score']:.2f}, drawdown OOS {item['avg_oos_drawdown']:.2f}%, folds positivos {item['positive_folds']}/{len(item['folds'])}."
         )
         for fold in item["folds"]:
             lineas.append(
@@ -695,14 +747,14 @@ def escribir_reporte_markdown(
                 f"- Estrategia: {mejor_walk['strategy_name']}",
                 f"- Retorno medio OOS: {mejor_walk['avg_oos_return']:.2f}%",
                 f"- Drawdown medio OOS: {mejor_walk['avg_oos_drawdown']:.2f}%",
-                f"- Folds positivos: {mejor_walk['positive_folds']}/3",
+                f"- Folds positivos: {mejor_walk['positive_folds']}/{len(mejor_walk['folds'])}",
             ]
         )
 
     lineas.extend(
         [
             "",
-            "## Validacion final ampliada 2025",
+            f"## Validacion final ampliada {final_years_texto}",
             "",
         ]
     )
@@ -720,7 +772,7 @@ def escribir_reporte_markdown(
                 "## Conclusiones operativas",
                 "",
                 f"- La mejor configuracion final ampliada fue `{mejor_final['strategy_name']}` con parametros `{mejor_final['params']}`.",
-                f"- En los seis pares mayores de 2025 dio un retorno medio de {mejor_final['summary']['avg_return']:.2f}% con drawdown medio de {mejor_final['summary']['avg_drawdown']:.2f}%.",
+                f"- En {len(metadata['pairs_expanded'])} pares y el periodo {final_years_texto} dio un retorno medio de {mejor_final['summary']['avg_return']:.2f}% con drawdown medio de {mejor_final['summary']['avg_drawdown']:.2f}%.",
                 "- Aun asi, esto sigue siendo investigacion historica; no implica robustez futura ni garantiza beneficio real.",
             ]
         )
@@ -730,11 +782,12 @@ def escribir_reporte_markdown(
 
 def main():
     parser = argparse.ArgumentParser(description="Busca combinaciones robustas de estrategias Forex.")
-    parser.add_argument("--workers", type=int, default=max(1, min(4, os.cpu_count() or 1)))
+    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     parser.add_argument("--spread-pips", type=float, default=1.0)
     parser.add_argument("--screen-candidates", type=int, default=8)
     parser.add_argument("--deep-candidates", type=int, default=24)
     parser.add_argument("--report-name", type=str, default=datetime.now().strftime("%Y%m%d_%H%M%S"))
+    parser.add_argument("--strategies", type=str, default="")
     parser.add_argument("--pairs-core", type=str, default="EURUSD,GBPUSD,USDJPY")
     parser.add_argument("--pairs-expanded", type=str, default="EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD")
     parser.add_argument("--screen-years", type=str, default="2024,2025")
@@ -748,15 +801,21 @@ def main():
     screen_years = parse_years(args.screen_years)
     deep_years = parse_years(args.deep_years)
     final_years = parse_years(args.final_years)
+    strategy_names = parse_strategies(args.strategies)
     report_dir = ROOT / "reports" / "strategy_research" / args.report_name
     report_dir.mkdir(parents=True, exist_ok=True)
+    log_linea(
+        "[setup] "
+        f"workers={workers} spread={args.spread_pips} "
+        f"strategies={len(strategy_names)} core_pairs={len(pairs_core)} "
+        f"expanded_pairs={len(pairs_expanded)}"
+    )
 
     screen_datasets = construir_datasets(pairs_core, screen_years)
-    all_strategy_names = list(CONFIGURACION_ESTRATEGIAS.keys())
 
     screening = ejecutar_fase(
         phase_name="screening",
-        strategy_names=all_strategy_names,
+        strategy_names=strategy_names,
         candidates_per_strategy=args.screen_candidates,
         datasets=screen_datasets,
         spread_pips=args.spread_pips,
@@ -764,7 +823,7 @@ def main():
         seed_base=1_000,
     )
 
-    top_strategy_names = mejores_estrategias(screening, limite=4)
+    top_strategy_names = mejores_estrategias(screening, limite=6)
     deep_datasets = construir_datasets(pairs_core, deep_years)
 
     deep_results = ejecutar_fase(
@@ -792,6 +851,7 @@ def main():
     metadata = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "spread_pips": args.spread_pips,
+        "strategy_names": strategy_names,
         "pairs_core": pairs_core,
         "pairs_expanded": pairs_expanded,
         "screen_years": screen_years,
@@ -827,14 +887,14 @@ def main():
         comparativa_final,
     )
 
-    print(f"Reporte guardado en: {report_dir}")
+    log_linea(f"Reporte guardado en: {report_dir}")
     if walkforward:
-        print(
+        log_linea(
             f"Mejor estrategia walk-forward: {walkforward[0]['strategy_name']} "
             f"(OOS medio {walkforward[0]['avg_oos_return']:.2f}%)"
         )
     if comparativa_final:
-        print(
+        log_linea(
             f"Mejor validacion final: {comparativa_final[0]['strategy_name']} "
             f"(retorno medio {comparativa_final[0]['summary']['avg_return']:.2f}%)"
         )

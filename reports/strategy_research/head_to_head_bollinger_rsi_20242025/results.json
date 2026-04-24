@@ -1,0 +1,199 @@
+{
+  "metadata": {
+    "timestamp": "2026-04-24T10:01:40",
+    "pairs": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "USDCHF",
+      "USDCAD",
+      "AUDUSD",
+      "NZDUSD",
+      "EURJPY"
+    ],
+    "years": [
+      2024,
+      2025
+    ],
+    "spreads": [
+      0.5,
+      0.75,
+      1.0
+    ],
+    "strategy_order": [
+      "Bollinger + RSI",
+      "RSI con niveles",
+      "Ruptura de sesion",
+      "Filtro porcentual"
+    ],
+    "candidate_pool_size": 6,
+    "seed_base": 1000
+  },
+  "runs": [
+    {
+      "spread": 0.5,
+      "results": [
+        {
+          "strategy_name": "Bollinger + RSI",
+          "candidate_index": 6,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "bollinger_periodo": 40,
+            "desviaciones": 2.5,
+            "rsi_periodo": 21
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 40.536267,
+            "avg_return": 45.450466,
+            "median_return": 14.320988,
+            "avg_drawdown": -24.400316,
+            "avg_profit_factor": 1.033343,
+            "avg_sharpe": 0.514586,
+            "avg_trades": 1696.3125
+          }
+        },
+        {
+          "strategy_name": "RSI con niveles",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "rsi_periodo": 21,
+            "nivel_sobrecompra": 80,
+            "nivel_sobreventa": 20
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 24.130963,
+            "avg_return": 12.12354,
+            "median_return": 10.634753,
+            "avg_drawdown": -20.854354,
+            "avg_profit_factor": 1.200863,
+            "avg_sharpe": 0.293267,
+            "avg_trades": 109.75
+          }
+        }
+      ]
+    },
+    {
+      "spread": 0.75,
+      "results": [
+        {
+          "strategy_name": "Bollinger + RSI",
+          "candidate_index": 6,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "bollinger_periodo": 40,
+            "desviaciones": 2.5,
+            "rsi_periodo": 21
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 6.019989,
+            "avg_return": 21.202585,
+            "median_return": -0.610806,
+            "avg_drawdown": -29.100041,
+            "avg_profit_factor": 0.978455,
+            "avg_sharpe": 0.004836,
+            "avg_trades": 1699.75
+          }
+        },
+        {
+          "strategy_name": "RSI con niveles",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "rsi_periodo": 21,
+            "nivel_sobrecompra": 80,
+            "nivel_sobreventa": 20
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 20.872971,
+            "avg_return": 10.340119,
+            "median_return": 9.008009,
+            "avg_drawdown": -21.32772,
+            "avg_profit_factor": 1.176877,
+            "avg_sharpe": 0.235981,
+            "avg_trades": 109.75
+          }
+        }
+      ]
+    },
+    {
+      "spread": 1.0,
+      "results": [
+        {
+          "strategy_name": "RSI con niveles",
+          "candidate_index": 4,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 100,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "rsi_periodo": 21,
+            "nivel_sobrecompra": 80,
+            "nivel_sobreventa": 20
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": 17.646335,
+            "avg_return": 8.585548,
+            "median_return": 7.405297,
+            "avg_drawdown": -21.804729,
+            "avg_profit_factor": 1.154994,
+            "avg_sharpe": 0.177913,
+            "avg_trades": 109.6875
+          }
+        },
+        {
+          "strategy_name": "Bollinger + RSI",
+          "candidate_index": 6,
+          "params": {
+            "stop_loss_pips": 15,
+            "take_profit_pips": 30,
+            "usar_trailing_stop": false,
+            "trailing_stop_pips": 12,
+            "session_label": "Nueva York",
+            "bollinger_periodo": 40,
+            "desviaciones": 2.5,
+            "rsi_periodo": 21
+          },
+          "summary": {
+            "datasets_ok": 16,
+            "datasets_error": 0,
+            "avg_score": -31.623316,
+            "avg_return": -1.533246,
+            "median_return": -18.775778,
+            "avg_drawdown": -35.158466,
+            "avg_profit_factor": 0.926328,
+            "avg_sharpe": -0.681168,
+            "avg_trades": 1702.375
+          }
+        }
+      ]
+    }
+  ]
+}
