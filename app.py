@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import os
 from pathlib import Path
 import math
 import re
@@ -101,6 +102,11 @@ VERSIONES_APP = {
         "subtitulo": "Edicion avanzada con trading manual y estrategias personalizadas.",
         "descripcion": "Amplia la 1.1 con lector de graficas para manual, mas estrategias y constructor guardable.",
     },
+    "1.4": {
+        "titulo": "Version 1.4",
+        "subtitulo": "Modo optimizado para bibliotecas grandes y carga mas estable.",
+        "descripcion": "Mantiene las funciones avanzadas, pero reduce recargas, usa cache agresiva y renderiza resultados bajo demanda.",
+    },
 }
 
 
@@ -126,13 +132,21 @@ def inicializar_estado():
         "carpeta_datos": str(obtener_carpeta_datos_predeterminada()),
         "vista_v11": "Inicio",
         "vista_v13": "Inicio",
+        "vista_v14": "Inicio",
         "resultado_lote_v11": None,
         "resultado_lote_v13": None,
+        "resultado_lote_v14": None,
         "nombre_lote_guardado_v11": "",
         "nombre_lote_guardado_v13": "",
+        "nombre_lote_guardado_v14": "",
         "mensaje_guardado_v11": None,
         "mensaje_guardado_v13": None,
+        "mensaje_guardado_v14": None,
         "manual_v13": None,
+        "manual_v14": None,
+        "revision_guardados": 0,
+        "revision_estrategias": 0,
+        "revision_biblioteca": 0,
     }
 
     for clave, valor in valores_por_defecto.items():
@@ -151,6 +165,56 @@ def acortar_texto(texto: str, limite: int = 28) -> str:
     if len(texto) <= limite:
         return texto
     return f"{texto[: limite - 3]}..."
+
+
+def invalidar_guardados():
+    """Fuerza una recarga de los lotes guardados."""
+    st.session_state["revision_guardados"] += 1
+
+
+def invalidar_estrategias():
+    """Fuerza una recarga de las estrategias personalizadas."""
+    st.session_state["revision_estrategias"] += 1
+
+
+def invalidar_biblioteca():
+    """Fuerza una recarga de la biblioteca local."""
+    st.session_state["revision_biblioteca"] += 1
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def obtener_guardados_cache(revision: int) -> list[dict[str, object]]:
+    """Lee y cachea los lotes guardados."""
+    return listar_backtests_guardados()
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def obtener_estrategias_guardadas_cache(revision: int) -> list[dict[str, object]]:
+    """Lee y cachea las estrategias guardadas."""
+    return listar_estrategias_personalizadas()
+
+
+def obtener_firma_archivo_local(ruta: str | Path) -> tuple[int, int]:
+    """Devuelve una firma ligera para invalidar la cache de archivos locales."""
+    stat_result = Path(ruta).stat()
+    return stat_result.st_mtime_ns, stat_result.st_size
+
+
+@st.cache_data(show_spinner=False, max_entries=128)
+def recopilar_fuentes_locales_cache(
+    ruta: str,
+    mtime_ns: int,
+    tamano_bytes: int,
+) -> list[FuenteArchivo]:
+    """Lee y expande una fuente local una sola vez mientras no cambie en disco."""
+    del mtime_ns, tamano_bytes
+    return expandir_fuente_archivo(leer_fuente_local(ruta))
+
+
+@st.cache_data(show_spinner=False, max_entries=128)
+def cargar_fuente_ohlcv_cache(fuente: FuenteArchivo) -> tuple[pd.DataFrame, str]:
+    """Carga OHLCV y lo reutiliza entre reruns y vistas."""
+    return cargar_fuente_ohlcv(fuente)
 
 
 def cambiar_version(version: str | None):
@@ -172,14 +236,14 @@ def render_selector_version():
         "Selecciona con que version quieres entrar. La 1.1 es la estable actual, la 1.0 recupera el flujo clasico y la 1.3 añade herramientas avanzadas."
     )
 
-    columnas = st.columns(3)
+    columnas = st.columns(len(VERSIONES_APP))
     for columna, version in zip(columnas, VERSIONES_APP):
         meta = VERSIONES_APP[version]
         with columna:
             st.subheader(meta["titulo"])
             st.caption(meta["subtitulo"])
             st.write(meta["descripcion"])
-            if st.button(f"Abrir {version}", use_container_width=True, type="primary" if version == "1.1" else "secondary"):
+            if st.button(f"Abrir {version}", use_container_width=True, type="primary" if version == "1.4" else "secondary"):
                 cambiar_version(version)
 
     st.info(
@@ -239,10 +303,12 @@ def obtener_catalogo_base(nombres_estrategia: list[str] | None = None) -> dict[s
     return catalogo
 
 
-def obtener_catalogo_avanzado() -> dict[str, dict[str, object]]:
+def obtener_catalogo_avanzado(
+    estrategias_guardadas: list[dict[str, object]] | None = None,
+) -> dict[str, dict[str, object]]:
     """Combina estrategias integradas y guardadas para la version 1.3."""
     catalogo = obtener_catalogo_base()
-    for item in listar_estrategias_personalizadas():
+    for item in estrategias_guardadas or []:
         plantilla = item.get("plantilla_base")
         if plantilla not in CONFIGURACION_ESTRATEGIAS:
             continue
@@ -262,6 +328,14 @@ def obtener_catalogo_avanzado() -> dict[str, dict[str, object]]:
             "meta_guardada": item,
         }
     return catalogo
+
+
+def mostrar_plotly_seguro(figura: go.Figure, *, clave_error: str):
+    """Renderiza un grafico sin tumbar toda la vista si Plotly falla."""
+    try:
+        st.plotly_chart(figura, use_container_width=True)
+    except Exception as exc:  # pragma: no cover - depende del frontend
+        st.warning(f"No se pudo mostrar el grafico {clave_error}: {exc}")
 
 
 def construir_parametros_estrategia(
@@ -672,9 +746,13 @@ def calcular_resumen_global(resultados: list[dict[str, object]]) -> dict[str, ob
     }
 
 
-@st.cache_data(show_spinner=False, ttl=5)
-def listar_archivos_locales(carpeta: str) -> tuple[list[dict[str, object]], str | None]:
+@st.cache_data(show_spinner=False, ttl=600, max_entries=12)
+def listar_archivos_locales(
+    carpeta: str,
+    revision: int,
+) -> tuple[list[dict[str, object]], str | None]:
     """Busca archivos CSV y ZIP dentro de una carpeta."""
+    del revision
     ruta = Path(carpeta).expanduser()
 
     if not ruta.exists():
@@ -684,33 +762,66 @@ def listar_archivos_locales(carpeta: str) -> tuple[list[dict[str, object]], str 
         return [], "La ruta indicada no es una carpeta."
 
     archivos = []
-    for archivo in sorted(ruta.rglob("*")):
-        if not archivo.is_file():
-            continue
-
-        relativo_path = archivo.relative_to(ruta)
-        if any(parte in DIRECTORIOS_EXCLUIDOS_BIBLIOTECA for parte in relativo_path.parts[:-1]):
-            continue
-
-        extension = archivo.suffix.lower()
-        if extension not in EXTENSIONES_CARPETA:
-            continue
-
-        tamano_mb = archivo.stat().st_size / (1024 * 1024)
-        relativo = relativo_path.as_posix()
-        etiqueta = f"{relativo}  |  {extension.replace('.', '').upper()}  |  {tamano_mb:.2f} MB"
-
-        archivos.append(
-            {
-                "ruta": str(archivo),
-                "relativo": relativo,
-                "extension": extension,
-                "tamano_mb": tamano_mb,
-                "etiqueta": etiqueta,
-            }
+    for raiz_actual, directorios, ficheros in os.walk(ruta):
+        directorios[:] = sorted(
+            directorio
+            for directorio in directorios
+            if directorio not in DIRECTORIOS_EXCLUIDOS_BIBLIOTECA
         )
+        raiz_path = Path(raiz_actual)
+
+        for nombre_fichero in sorted(ficheros):
+            archivo = raiz_path / nombre_fichero
+            extension = archivo.suffix.lower()
+            if extension not in EXTENSIONES_CARPETA:
+                continue
+
+            try:
+                tamano_mb = archivo.stat().st_size / (1024 * 1024)
+            except OSError:
+                continue
+
+            relativo = archivo.relative_to(ruta).as_posix()
+            etiqueta = f"{relativo}  |  {extension.replace('.', '').upper()}  |  {tamano_mb:.2f} MB"
+
+            archivos.append(
+                {
+                    "ruta": str(archivo),
+                    "relativo": relativo,
+                    "extension": extension,
+                    "tamano_mb": tamano_mb,
+                    "etiqueta": etiqueta,
+                }
+            )
 
     return archivos, None
+
+
+def filtrar_archivos_locales(
+    archivos_locales: list[dict[str, object]],
+    texto_busqueda: str = "",
+    extensiones: list[str] | None = None,
+    limite: int | None = None,
+) -> list[dict[str, object]]:
+    """Reduce la biblioteca visible para que la interfaz no cargue miles de opciones."""
+    texto = texto_busqueda.strip().lower()
+    extensiones_activas = {extension.lower() for extension in extensiones or EXTENSIONES_CARPETA}
+    filtrados = []
+
+    for item in archivos_locales:
+        if item["extension"] not in extensiones_activas:
+            continue
+
+        relativo = str(item["relativo"])
+        if texto and texto not in relativo.lower():
+            continue
+
+        filtrados.append(item)
+
+        if limite and len(filtrados) >= limite:
+            break
+
+    return filtrados
 
 
 def recopilar_fuentes(rutas_locales: list[str], archivos_subidos) -> tuple[list[FuenteArchivo], list[dict[str, str]]]:
@@ -721,8 +832,8 @@ def recopilar_fuentes(rutas_locales: list[str], archivos_subidos) -> tuple[list[
 
     for ruta in rutas_locales:
         try:
-            fuente = leer_fuente_local(ruta)
-            expandidas = expandir_fuente_archivo(fuente)
+            mtime_ns, tamano_bytes = obtener_firma_archivo_local(ruta)
+            expandidas = recopilar_fuentes_locales_cache(ruta, mtime_ns, tamano_bytes)
             for item in expandidas:
                 clave = item.ruta or f"{item.origen}:{item.nombre}:{len(item.contenido)}"
                 if clave not in claves_vistas:
@@ -754,6 +865,7 @@ def ejecutar_lote_backtests(
     fuentes: list[FuenteArchivo],
     clase_estrategia,
     parametros_base: dict[str, object],
+    almacenar_datos: bool = True,
 ) -> list[dict[str, object]]:
     """Procesa multiples fuentes y devuelve sus resultados individuales."""
     resultados = []
@@ -763,7 +875,7 @@ def ejecutar_lote_backtests(
     for indice, fuente in enumerate(fuentes, start=1):
         estado.info(f"Procesando {indice}/{len(fuentes)}: {fuente.nombre}")
         try:
-            datos, formato = cargar_fuente_ohlcv(fuente)
+            datos, formato = cargar_fuente_ohlcv_cache(fuente)
             pip_size = inferir_tamano_pip(datos)
 
             parametros = {
@@ -786,7 +898,8 @@ def ejecutar_lote_backtests(
                     "velas": len(datos),
                     "inicio": datos.index.min(),
                     "fin": datos.index.max(),
-                    "datos": datos,
+                    "datos": datos if almacenar_datos else None,
+                    "fuente_cache": fuente if not almacenar_datos else None,
                     "metricas": calcular_metricas_resumen(stats),
                     "trades": trades,
                     "equity": curva_equity,
@@ -885,13 +998,92 @@ def render_inicio_general(archivos_locales: list[dict[str, object]], error_carpe
         st.info("Aun no has guardado ningun lote de backtesting.")
 
 
-def render_guardados(guardados: list[dict[str, object]]):
+def render_detalle_guardado(item: dict[str, object], indice: int):
+    """Renderiza el contenido de un lote guardado."""
+    resumen = item.get("resumen_global", {})
+    metrica_cols = st.columns(4)
+    metrica_cols[0].metric("Estrategia", item.get("estrategia", "N/D"))
+    metrica_cols[1].metric("Operaciones", resumen.get("operaciones_totales", 0))
+    metrica_cols[2].metric(
+        "Rentabilidad media",
+        formatear_numero(resumen.get("rentabilidad_media"), "%"),
+    )
+    metrica_cols[3].metric("Fallidos", resumen.get("archivos_fallidos", 0))
+
+    archivos = item.get("archivos", [])
+    if archivos:
+        filas = []
+        for archivo in archivos:
+            filas.append(
+                {
+                    "Archivo": archivo.get("archivo"),
+                    "Formato": archivo.get("formato", "N/D"),
+                    "Velas": archivo.get("velas", "N/D"),
+                    "Rentabilidad (%)": (archivo.get("metricas") or {}).get("rentabilidad_total"),
+                    "Operaciones": (archivo.get("metricas") or {}).get("total_operaciones"),
+                    "Error": archivo.get("error"),
+                }
+            )
+        st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
+
+    ruta_json = Path(item["ruta_archivo"])
+    st.download_button(
+        "Descargar JSON",
+        data=ruta_json.read_text(encoding="utf-8"),
+        file_name=ruta_json.name,
+        mime="application/json",
+        key=f"download_guardado_{indice}",
+    )
+
+
+def render_guardados(
+    guardados: list[dict[str, object]],
+    modo_optimizado: bool = False,
+    key_prefix: str = "guardados",
+):
     """Muestra los backtests guardados en disco."""
     st.header("Guardados")
     st.write("Aqui puedes revisar los lotes guardados localmente y descargar su resumen en JSON.")
 
     if not guardados:
         st.info("Aun no se ha guardado ningun lote.")
+        return
+
+    if modo_optimizado:
+        filtro = st.text_input(
+            "Filtrar guardados",
+            key=f"{key_prefix}_filtro_guardados",
+            help="Busca por nombre del lote, estrategia o fecha.",
+        ).strip().lower()
+        guardados_visibles = []
+        for item in guardados:
+            texto = " ".join(
+                [
+                    str(item.get("nombre_lote", "")),
+                    str(item.get("estrategia", "")),
+                    str(item.get("fecha_guardado", "")),
+                ]
+            ).lower()
+            if filtro and filtro not in texto:
+                continue
+            guardados_visibles.append(item)
+
+        st.caption(f"Mostrando {len(guardados_visibles)} de {len(guardados)} lotes guardados.")
+        if not guardados_visibles:
+            st.info("No hay lotes que coincidan con el filtro.")
+            return
+
+        opciones = {
+            f"{indice}. {item.get('nombre_lote', 'Sin nombre')} | {item.get('fecha_guardado', '')}": (indice, item)
+            for indice, item in enumerate(guardados_visibles, start=1)
+        }
+        seleccion = st.selectbox(
+            "Lote guardado",
+            options=list(opciones.keys()),
+            key=f"{key_prefix}_seleccion_guardado",
+        )
+        indice, item = opciones[seleccion]
+        render_detalle_guardado(item, indice)
         return
 
     for indice, item in enumerate(guardados, start=1):
@@ -903,39 +1095,7 @@ def render_guardados(guardados: list[dict[str, object]]):
         )
 
         with st.expander(etiqueta):
-            metrica_cols = st.columns(4)
-            metrica_cols[0].metric("Estrategia", item.get("estrategia", "N/D"))
-            metrica_cols[1].metric("Operaciones", resumen.get("operaciones_totales", 0))
-            metrica_cols[2].metric(
-                "Rentabilidad media",
-                formatear_numero(resumen.get("rentabilidad_media"), "%"),
-            )
-            metrica_cols[3].metric("Fallidos", resumen.get("archivos_fallidos", 0))
-
-            archivos = item.get("archivos", [])
-            if archivos:
-                filas = []
-                for archivo in archivos:
-                    filas.append(
-                        {
-                            "Archivo": archivo.get("archivo"),
-                            "Formato": archivo.get("formato", "N/D"),
-                            "Velas": archivo.get("velas", "N/D"),
-                            "Rentabilidad (%)": (archivo.get("metricas") or {}).get("rentabilidad_total"),
-                            "Operaciones": (archivo.get("metricas") or {}).get("total_operaciones"),
-                            "Error": archivo.get("error"),
-                        }
-                    )
-                st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
-
-            ruta_json = Path(item["ruta_archivo"])
-            st.download_button(
-                "Descargar JSON",
-                data=ruta_json.read_text(encoding="utf-8"),
-                file_name=ruta_json.name,
-                mime="application/json",
-                key=f"download_guardado_{indice}",
-            )
+            render_detalle_guardado(item, indice)
 
 
 def render_formulario_backtest(
@@ -943,6 +1103,7 @@ def render_formulario_backtest(
     error_carpeta: str | None,
     catalogo_estrategias: dict[str, dict[str, object]],
     key_prefix: str,
+    modo_optimizado: bool = False,
 ):
     """Dibuja el formulario principal de configuracion en la barra lateral."""
     with st.sidebar:
@@ -950,26 +1111,72 @@ def render_formulario_backtest(
         st.header("Configuracion")
         st.caption("Selecciona fuentes, estrategia y gestion de riesgo.")
 
-        st.text_input(
-            "Carpeta local de datos",
-            key="carpeta_datos",
-            help="Aqui puedes apuntar a la carpeta donde guardas tus CSV y ZIP.",
-        )
+        columna_carpeta, columna_recarga = st.columns([4, 1])
+        with columna_carpeta:
+            st.text_input(
+                "Carpeta local de datos",
+                key="carpeta_datos",
+                help="Aqui puedes apuntar a la carpeta donde guardas tus CSV y ZIP.",
+            )
+        with columna_recarga:
+            st.write("")
+            if st.button("Recargar", use_container_width=True, key=f"{key_prefix}_recargar_biblioteca"):
+                invalidar_biblioteca()
+                st.rerun()
 
         if error_carpeta:
             st.warning(error_carpeta)
             seleccion_local = []
         else:
-            opciones = [item["ruta"] for item in archivos_locales]
-            mapa = {item["ruta"]: item["etiqueta"] for item in archivos_locales}
+            archivos_visibles = archivos_locales
+            if modo_optimizado:
+                busqueda_local = st.text_input(
+                    "Filtrar biblioteca",
+                    key=f"{key_prefix}_buscar_local",
+                    help="Filtra por texto para no cargar miles de opciones a la vez.",
+                )
+                extensiones_locales = st.multiselect(
+                    "Tipos visibles",
+                    options=sorted(EXTENSIONES_CARPETA),
+                    default=sorted(EXTENSIONES_CARPETA),
+                    key=f"{key_prefix}_extensiones_local",
+                )
+                limite_local = st.slider(
+                    "Maximo de archivos visibles",
+                    min_value=50,
+                    max_value=1000,
+                    value=250,
+                    step=50,
+                    key=f"{key_prefix}_limite_local",
+                )
+                archivos_visibles = filtrar_archivos_locales(
+                    archivos_locales,
+                    texto_busqueda=busqueda_local,
+                    extensiones=extensiones_locales,
+                    limite=limite_local,
+                )
+                st.caption(
+                    f"Mostrando {len(archivos_visibles)} de {len(archivos_locales)} archivos detectados."
+                )
+
+            clave_multiselect = f"{key_prefix}_multiselect_local"
+            opciones = [item["ruta"] for item in archivos_visibles]
+            mapa = {item["ruta"]: item["etiqueta"] for item in archivos_visibles}
+            seleccion_previa = st.session_state.get(clave_multiselect, [])
+            mapa_completo = {item["ruta"]: item["etiqueta"] for item in archivos_locales}
+            for ruta_previa in seleccion_previa:
+                if ruta_previa in mapa_completo and ruta_previa not in mapa:
+                    opciones.append(ruta_previa)
+                    mapa[ruta_previa] = mapa_completo[ruta_previa]
             seleccion_local = st.multiselect(
                 "Selecciona archivos locales",
                 options=opciones,
                 format_func=lambda ruta: mapa[ruta],
                 help="Puedes mezclar CSV y ZIP. Los ZIP se expanden automaticamente.",
-                key=f"{key_prefix}_multiselect_local",
+                key=clave_multiselect,
             )
-            st.caption(f"Archivos disponibles en la biblioteca: {len(archivos_locales)}")
+            if not modo_optimizado:
+                st.caption(f"Archivos disponibles en la biblioteca: {len(archivos_locales)}")
 
         archivos_subidos = st.file_uploader(
             "O sube archivos manualmente",
@@ -1112,8 +1319,30 @@ def render_seleccion_actual(
     st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
 
 
-def render_resultado_individual(resultado: dict[str, object], indice: int, key_prefix: str):
+def obtener_datos_resultado(resultado: dict[str, object]) -> pd.DataFrame:
+    """Recupera los datos del resultado y los carga bajo demanda en la 1.4."""
+    datos = resultado.get("datos")
+    if isinstance(datos, pd.DataFrame):
+        return datos
+
+    fuente = resultado.get("fuente_cache")
+    if not isinstance(fuente, FuenteArchivo):
+        raise CSVFormatoError("No se pudo reconstruir el dataset de este resultado.")
+
+    datos, _ = cargar_fuente_ohlcv_cache(fuente)
+    resultado["datos"] = datos
+    return datos
+
+
+def render_resultado_individual(
+    resultado: dict[str, object],
+    indice: int,
+    key_prefix: str,
+    modo_optimizado: bool = False,
+):
     """Renderiza una pestana individual de resultados."""
+    datos = obtener_datos_resultado(resultado)
+
     st.caption(
         f"Origen: {resultado['origen']} | Formato: {resultado['formato']} | "
         f"Velas: {resultado['velas']:,}".replace(",", ".")
@@ -1129,8 +1358,8 @@ def render_resultado_individual(resultado: dict[str, object], indice: int, key_p
 
     st.markdown("---")
     clave_slider = f"{key_prefix}_slider_velas_{indice}_{slugify(resultado['nombre_dataset'])}"
-    velas_disponibles = len(resultado["datos"])
-    valor_defecto_velas = min(1000, velas_disponibles)
+    velas_disponibles = len(datos)
+    valor_defecto_velas = min(500 if modo_optimizado else 1000, velas_disponibles)
     minimo_slider = min(100, velas_disponibles)
 
     velas_a_mostrar = st.slider(
@@ -1142,25 +1371,34 @@ def render_resultado_individual(resultado: dict[str, object], indice: int, key_p
         key=clave_slider,
     )
 
-    st.plotly_chart(
-        crear_grafico_velas(resultado["datos"], resultado["trades"], velas_a_mostrar),
-        use_container_width=True,
+    mostrar_plotly_seguro(
+        crear_grafico_velas(datos, resultado["trades"], velas_a_mostrar),
+        clave_error=f"principal {indice}",
     )
 
     col_graficos_1, col_graficos_2 = st.columns(2)
     with col_graficos_1:
         if not resultado["equity"].empty:
-            st.plotly_chart(crear_grafico_equity(resultado["equity"]), use_container_width=True)
+            mostrar_plotly_seguro(
+                crear_grafico_equity(resultado["equity"]),
+                clave_error=f"equity {indice}",
+            )
         else:
             st.info("No hay curva de equity disponible para este archivo.")
     with col_graficos_2:
         if not resultado["drawdown"].empty:
-            st.plotly_chart(crear_grafico_drawdown(resultado["drawdown"]), use_container_width=True)
+            mostrar_plotly_seguro(
+                crear_grafico_drawdown(resultado["drawdown"]),
+                clave_error=f"drawdown {indice}",
+            )
         else:
             st.info("No hay drawdown disponible para este archivo.")
 
     if not resultado["trades"].empty and "PnL" in resultado["trades"].columns:
-        st.plotly_chart(crear_histograma_operaciones(resultado["trades"]), use_container_width=True)
+        mostrar_plotly_seguro(
+            crear_histograma_operaciones(resultado["trades"]),
+            clave_error=f"histograma {indice}",
+        )
     else:
         st.info("No hubo operaciones cerradas, por lo que no se puede dibujar el histograma.")
 
@@ -1198,19 +1436,19 @@ def render_resumen_global(lote_actual: dict[str, object]):
         if len(tabla) > 1:
             col1, col2 = st.columns(2)
             with col1:
-                st.plotly_chart(
+                mostrar_plotly_seguro(
                     crear_grafico_barras(tabla, "Rentabilidad total (%)", "Rentabilidad por archivo"),
-                    use_container_width=True,
+                    clave_error="rentabilidad_global",
                 )
             with col2:
-                st.plotly_chart(
+                mostrar_plotly_seguro(
                     crear_grafico_barras(tabla, "Win rate (%)", "Win rate por archivo"),
-                    use_container_width=True,
+                    clave_error="win_rate_global",
                 )
 
-            st.plotly_chart(
+            mostrar_plotly_seguro(
                 crear_grafico_equity_comparada(exitosos),
-                use_container_width=True,
+                clave_error="equity_comparada",
             )
 
     if fallidos:
@@ -1221,7 +1459,13 @@ def render_resumen_global(lote_actual: dict[str, object]):
         st.dataframe(tabla_errores, use_container_width=True, hide_index=True)
 
 
-def render_lote_actual(key_resultado: str, key_nombre: str, key_mensaje: str, key_prefix: str):
+def render_lote_actual(
+    key_resultado: str,
+    key_nombre: str,
+    key_mensaje: str,
+    key_prefix: str,
+    modo_optimizado: bool = False,
+):
     """Muestra el lote actual ya procesado."""
     lote_actual = st.session_state.get(key_resultado)
     if not lote_actual:
@@ -1249,6 +1493,7 @@ def render_lote_actual(key_resultado: str, key_nombre: str, key_mensaje: str, ke
                 lote_actual["resumen_global"],
                 [preparar_fila_guardado(item) for item in lote_actual["resultados"]],
             )
+            invalidar_guardados()
             st.session_state[key_mensaje] = f"Lote guardado en {ruta}"
             st.rerun()
 
@@ -1262,6 +1507,47 @@ def render_lote_actual(key_resultado: str, key_nombre: str, key_mensaje: str, ke
     ]
     if any(item.get("error") for item in lote_actual["resultados"]):
         etiquetas.append("Errores")
+
+    if modo_optimizado:
+        render_resumen_global(lote_actual)
+
+        if exitosos:
+            mapa_resultados = {
+                f"{indice}. {acortar_texto(item['nombre_dataset'], 36)}": (indice, item)
+                for indice, item in enumerate(exitosos, start=1)
+            }
+            seleccion = st.selectbox(
+                "Resultado individual",
+                options=["Sin seleccionar"] + list(mapa_resultados.keys()),
+                key=f"{key_prefix}_resultado_individual",
+                help="En la 1.4 solo se renderiza un resultado a la vez para evitar bloqueos con lotes grandes.",
+            )
+
+            if seleccion != "Sin seleccionar":
+                indice, resultado = mapa_resultados[seleccion]
+                try:
+                    render_resultado_individual(
+                        resultado,
+                        indice,
+                        key_prefix=key_prefix,
+                        modo_optimizado=True,
+                    )
+                except Exception as exc:
+                    st.warning(f"No se pudo renderizar ese resultado individual: {exc}")
+
+        if any(item.get("error") for item in lote_actual["resultados"]):
+            with st.expander("Errores del lote"):
+                errores = [
+                    {
+                        "Archivo": item["nombre_dataset"],
+                        "Origen": item["origen"],
+                        "Detalle": item["error"],
+                    }
+                    for item in lote_actual["resultados"]
+                    if item.get("error")
+                ]
+                st.dataframe(pd.DataFrame(errores), use_container_width=True, hide_index=True)
+        return
 
     pestanas = st.tabs(etiquetas)
 
@@ -1286,7 +1572,13 @@ def render_lote_actual(key_resultado: str, key_nombre: str, key_mensaje: str, ke
             st.dataframe(pd.DataFrame(errores), use_container_width=True, hide_index=True)
 
 
-def ejecutar_y_guardar_lote(formulario: dict[str, object], key_resultado: str, key_nombre: str, key_mensaje: str):
+def ejecutar_y_guardar_lote(
+    formulario: dict[str, object],
+    key_resultado: str,
+    key_nombre: str,
+    key_mensaje: str,
+    almacenar_datos: bool = True,
+):
     """Ejecuta el lote segun el formulario y lo guarda en session state."""
     fuentes, errores_fuente = recopilar_fuentes(
         formulario["seleccion_local"],
@@ -1304,6 +1596,7 @@ def ejecutar_y_guardar_lote(formulario: dict[str, object], key_resultado: str, k
         fuentes,
         clase_estrategia,
         formulario["parametros"],
+        almacenar_datos=almacenar_datos,
     )
 
     for error in errores_fuente:
@@ -1613,13 +1906,20 @@ def avanzar_manual(estado: dict[str, object], pasos: int = 1):
         registrar_equity_manual(estado, tiempo, float(fila["Close"]))
 
 
-def preparar_sesion_manual(fuente: FuenteArchivo, capital_inicial: float, riesgo_pct: float, stop_loss_pips: int, take_profit_pips: int):
+def preparar_sesion_manual(
+    fuente: FuenteArchivo,
+    capital_inicial: float,
+    riesgo_pct: float,
+    stop_loss_pips: int,
+    take_profit_pips: int,
+    clave_estado: str,
+):
     """Crea una sesion de replay manual a partir de una fuente."""
-    datos, formato = cargar_fuente_ohlcv(fuente)
+    datos, formato = cargar_fuente_ohlcv_cache(fuente)
     pip_size = inferir_tamano_pip(datos)
     indice_inicial = min(max(150, 50), len(datos) - 1)
 
-    st.session_state["manual_v13"] = {
+    st.session_state[clave_estado] = {
         "nombre": fuente.nombre,
         "origen": fuente.origen,
         "formato": formato,
@@ -1649,8 +1949,14 @@ def obtener_fuente_manual(ruta_local: str | None, archivo_subido) -> tuple[list[
     return recopilar_fuentes(rutas, archivos)
 
 
-def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpeta: str | None):
-    """Vista de trading manual de la version 1.3."""
+def render_trading_manual(
+    archivos_locales: list[dict[str, object]],
+    error_carpeta: str | None,
+    key_prefix: str,
+    clave_estado: str,
+    modo_optimizado: bool = False,
+):
+    """Vista de trading manual de las versiones avanzadas."""
     st.header("Trading manual")
     st.write(
         "Reproduce el grafico vela a vela, abre operaciones manuales y revisa tu curva de equity como si estuvieras entrenando lectura de mercado."
@@ -1664,13 +1970,32 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
             st.warning(error_carpeta)
             ruta_local = None
         else:
-            opciones = [item["ruta"] for item in archivos_locales]
-            mapa = {item["ruta"]: item["etiqueta"] for item in archivos_locales}
+            archivos_visibles = archivos_locales
+            if modo_optimizado:
+                filtro_manual = st.text_input(
+                    "Filtrar biblioteca manual",
+                    key=f"{key_prefix}_manual_filtro",
+                    help="Reduce la lista visible para que el selector no cargue miles de archivos.",
+                )
+                archivos_visibles = filtrar_archivos_locales(
+                    archivos_locales,
+                    texto_busqueda=filtro_manual,
+                    limite=300,
+                )
+
+            clave_manual_local = f"{key_prefix}_manual_local"
+            opciones = [item["ruta"] for item in archivos_visibles]
+            mapa = {item["ruta"]: item["etiqueta"] for item in archivos_visibles}
+            seleccion_previa = st.session_state.get(clave_manual_local)
+            mapa_completo = {item["ruta"]: item["etiqueta"] for item in archivos_locales}
+            if seleccion_previa and seleccion_previa in mapa_completo and seleccion_previa not in mapa:
+                opciones.append(seleccion_previa)
+                mapa[seleccion_previa] = mapa_completo[seleccion_previa]
             ruta_local = st.selectbox(
                 "Archivo local para manual",
                 options=[""] + opciones,
                 format_func=lambda ruta: "Sin seleccionar" if ruta == "" else mapa[ruta],
-                key="v13_manual_local",
+                key=clave_manual_local,
             )
             ruta_local = ruta_local or None
 
@@ -1678,14 +2003,14 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
             "O sube un archivo para manual",
             type=["csv", "txt", "zip"],
             accept_multiple_files=False,
-            key="v13_manual_uploader",
+            key=f"{key_prefix}_manual_uploader",
         )
-        capital = st.number_input("Capital inicial manual ($)", min_value=100.0, max_value=1_000_000.0, value=10_000.0, step=100.0, key="v13_manual_capital")
-        riesgo = st.number_input("Riesgo por operacion (%)", min_value=0.1, max_value=10.0, value=1.0, step=0.1, key="v13_manual_riesgo")
-        sl = st.number_input("Stop Loss manual (pips)", min_value=1, max_value=500, value=20, step=1, key="v13_manual_sl")
-        tp = st.number_input("Take Profit manual (pips)", min_value=1, max_value=1000, value=40, step=1, key="v13_manual_tp")
+        capital = st.number_input("Capital inicial manual ($)", min_value=100.0, max_value=1_000_000.0, value=10_000.0, step=100.0, key=f"{key_prefix}_manual_capital")
+        riesgo = st.number_input("Riesgo por operacion (%)", min_value=0.1, max_value=10.0, value=1.0, step=0.1, key=f"{key_prefix}_manual_riesgo")
+        sl = st.number_input("Stop Loss manual (pips)", min_value=1, max_value=500, value=20, step=1, key=f"{key_prefix}_manual_sl")
+        tp = st.number_input("Take Profit manual (pips)", min_value=1, max_value=1000, value=40, step=1, key=f"{key_prefix}_manual_tp")
 
-        preparar = st.button("Preparar sesion manual", type="primary", use_container_width=True, key="v13_manual_preparar")
+        preparar = st.button("Preparar sesion manual", type="primary", use_container_width=True, key=f"{key_prefix}_manual_preparar")
 
     if preparar:
         fuentes, errores = obtener_fuente_manual(ruta_local, archivo_subido)
@@ -1697,12 +2022,12 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
             st.warning("La fuente seleccionada contiene varios datasets. Usa un CSV unico o un ZIP con un solo dataset para el modo manual.")
         else:
             try:
-                preparar_sesion_manual(fuentes[0], float(capital), float(riesgo), int(sl), int(tp))
+                preparar_sesion_manual(fuentes[0], float(capital), float(riesgo), int(sl), int(tp), clave_estado)
                 st.rerun()
             except Exception as exc:
                 st.error(f"No se pudo preparar la sesion manual: {exc}")
 
-    estado = st.session_state.get("manual_v13")
+    estado = st.session_state.get(clave_estado)
     if not estado:
         st.info("Prepara una sesion manual para empezar a reproducir el grafico.")
         return
@@ -1718,7 +2043,7 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
     col_estado_4.metric("Vela actual", str(estado["indice_actual"] + 1))
 
     fila_controles = st.columns(6)
-    if fila_controles[0].button("Comprar", use_container_width=True, disabled=bool(estado.get("trade_abierto")), key="v13_manual_buy"):
+    if fila_controles[0].button("Comprar", use_container_width=True, disabled=bool(estado.get("trade_abierto")), key=f"{key_prefix}_manual_buy"):
         trade = construir_trade_abierto(
             estado["datos"],
             estado["indice_actual"],
@@ -1733,7 +2058,7 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
             estado["trade_abierto"] = trade
             st.rerun()
 
-    if fila_controles[1].button("Vender", use_container_width=True, disabled=bool(estado.get("trade_abierto")), key="v13_manual_sell"):
+    if fila_controles[1].button("Vender", use_container_width=True, disabled=bool(estado.get("trade_abierto")), key=f"{key_prefix}_manual_sell"):
         trade = construir_trade_abierto(
             estado["datos"],
             estado["indice_actual"],
@@ -1748,30 +2073,30 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
             estado["trade_abierto"] = trade
             st.rerun()
 
-    if fila_controles[2].button("Cerrar trade", use_container_width=True, disabled=not bool(estado.get("trade_abierto")), key="v13_manual_close"):
+    if fila_controles[2].button("Cerrar trade", use_container_width=True, disabled=not bool(estado.get("trade_abierto")), key=f"{key_prefix}_manual_close"):
         indice = estado["indice_actual"]
         fila = estado["datos"].iloc[indice]
         cerrar_trade_manual(estado, float(fila["Close"]), estado["datos"].index[indice], "Cierre manual")
         registrar_equity_manual(estado, estado["datos"].index[indice], float(fila["Close"]))
         st.rerun()
 
-    if fila_controles[3].button("Siguiente vela", use_container_width=True, key="v13_manual_next1"):
+    if fila_controles[3].button("Siguiente vela", use_container_width=True, key=f"{key_prefix}_manual_next1"):
         avanzar_manual(estado, 1)
         st.rerun()
 
-    if fila_controles[4].button("+10 velas", use_container_width=True, key="v13_manual_next10"):
+    if fila_controles[4].button("+10 velas", use_container_width=True, key=f"{key_prefix}_manual_next10"):
         avanzar_manual(estado, 10)
         st.rerun()
 
-    if fila_controles[5].button("Reiniciar", use_container_width=True, key="v13_manual_reset"):
-        st.session_state["manual_v13"] = None
+    if fila_controles[5].button("Reiniciar", use_container_width=True, key=f"{key_prefix}_manual_reset"):
+        st.session_state[clave_estado] = None
         st.rerun()
 
     datos_visibles = estado["datos"].iloc[: estado["indice_actual"] + 1]
     trades_df = pd.DataFrame(estado["trades"])
-    st.plotly_chart(
+    mostrar_plotly_seguro(
         crear_grafico_velas_manual(datos_visibles, trades_df, estado.get("trade_abierto")),
-        use_container_width=True,
+        clave_error=f"{key_prefix}_manual_principal",
     )
 
     equity_df = pd.DataFrame(estado["equity_curve"])
@@ -1780,11 +2105,17 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
         equity_df = equity_df.set_index("DateTime")
         col_eq, col_dd = st.columns(2)
         with col_eq:
-            st.plotly_chart(crear_grafico_equity(equity_df), use_container_width=True)
+            mostrar_plotly_seguro(
+                crear_grafico_equity(equity_df),
+                clave_error=f"{key_prefix}_manual_equity",
+            )
         with col_dd:
             drawdown = calcular_serie_drawdown(equity_df)
             if not drawdown.empty:
-                st.plotly_chart(crear_grafico_drawdown(drawdown), use_container_width=True)
+                mostrar_plotly_seguro(
+                    crear_grafico_drawdown(drawdown),
+                    clave_error=f"{key_prefix}_manual_drawdown",
+                )
 
     if estado.get("trade_abierto"):
         trade = estado["trade_abierto"]
@@ -1811,8 +2142,8 @@ def render_trading_manual(archivos_locales: list[dict[str, object]], error_carpe
         st.info("Todavia no has cerrado ninguna operacion manual.")
 
 
-def render_estrategias_v13():
-    """Gestiona las estrategias integradas y personalizadas de la version 1.3."""
+def render_estrategias_avanzadas(key_prefix: str):
+    """Gestiona las estrategias integradas y personalizadas de las versiones avanzadas."""
     st.header("Estrategias")
     st.write(
         "Aqui puedes revisar las estrategias integradas, crear variantes personalizadas y dejarlas guardadas para reutilizarlas en el backtester."
@@ -1831,7 +2162,7 @@ def render_estrategias_v13():
     st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
 
     st.subheader("Crear estrategia personalizada")
-    with st.form("form_estrategia_personalizada"):
+    with st.form(f"{key_prefix}_form_estrategia_personalizada"):
         nombre = st.text_input("Nombre de la estrategia")
         plantilla = st.selectbox("Plantilla base", list(CONFIGURACION_ESTRATEGIAS.keys()))
         descripcion = st.text_area(
@@ -1839,7 +2170,7 @@ def render_estrategias_v13():
             placeholder="Ejemplo: variante mas rapida del MACD para marcos de 15 minutos.",
         )
         catalogo = obtener_catalogo_base([plantilla])
-        parametros = construir_parametros_estrategia(plantilla, catalogo, key_prefix="v13_builder")
+        parametros = construir_parametros_estrategia(plantilla, catalogo, key_prefix=f"{key_prefix}_builder")
         guardar = st.form_submit_button("Guardar estrategia")
 
     if guardar:
@@ -1847,11 +2178,12 @@ def render_estrategias_v13():
             st.error("Ponle un nombre a la estrategia personalizada.")
         else:
             ruta = guardar_estrategia_personalizada(nombre.strip(), plantilla, descripcion.strip(), parametros)
+            invalidar_estrategias()
             st.success(f"Estrategia guardada en {ruta.name}")
             st.rerun()
 
     st.subheader("Estrategias guardadas")
-    estrategias_guardadas = listar_estrategias_personalizadas()
+    estrategias_guardadas = obtener_estrategias_guardadas_cache(st.session_state["revision_estrategias"])
     if not estrategias_guardadas:
         st.info("Todavia no has guardado ninguna estrategia personalizada.")
         return
@@ -1868,12 +2200,18 @@ def render_estrategias_v13():
             if not parametros_df.empty:
                 st.dataframe(parametros_df, use_container_width=True, hide_index=True)
 
-            if st.button("Eliminar estrategia", key=f"eliminar_estrategia_{indice}"):
+            if st.button("Eliminar estrategia", key=f"{key_prefix}_eliminar_estrategia_{indice}"):
                 eliminar_estrategia_personalizada(item["ruta_archivo"])
+                invalidar_estrategias()
                 st.rerun()
 
 
-def render_v1_3(archivos_locales: list[dict[str, object]], error_carpeta: str | None, guardados: list[dict[str, object]]):
+def render_v1_3(
+    archivos_locales: list[dict[str, object]],
+    error_carpeta: str | None,
+    guardados: list[dict[str, object]],
+    estrategias_guardadas: list[dict[str, object]],
+):
     """Version 1.3 avanzada."""
     vista = st.session_state["vista_v13"]
     render_navegacion(["Inicio", "Nuevo backtest", "Trading manual", "Estrategias", "Guardados"], "vista_v13")
@@ -1887,11 +2225,11 @@ def render_v1_3(archivos_locales: list[dict[str, object]], error_carpeta: str | 
         return
 
     if vista == "Trading manual":
-        render_trading_manual(archivos_locales, error_carpeta)
+        render_trading_manual(archivos_locales, error_carpeta, "v13", "manual_v13")
         return
 
     if vista == "Estrategias":
-        render_estrategias_v13()
+        render_estrategias_avanzadas("v13")
         return
 
     if vista == "Guardados":
@@ -1903,7 +2241,7 @@ def render_v1_3(archivos_locales: list[dict[str, object]], error_carpeta: str | 
         "La version 1.3 mantiene el flujo de la 1.1 y suma nuevas estrategias integradas y guardadas."
     )
 
-    catalogo = obtener_catalogo_avanzado()
+    catalogo = obtener_catalogo_avanzado(estrategias_guardadas)
     formulario = render_formulario_backtest(archivos_locales, error_carpeta, catalogo, key_prefix="v13")
     render_seleccion_actual(formulario["seleccion_local"], formulario["archivos_subidos"], archivos_locales)
 
@@ -1911,6 +2249,78 @@ def render_v1_3(archivos_locales: list[dict[str, object]], error_carpeta: str | 
         ejecutar_y_guardar_lote(formulario, "resultado_lote_v13", "nombre_lote_guardado_v13", "mensaje_guardado_v13")
 
     render_lote_actual("resultado_lote_v13", "nombre_lote_guardado_v13", "mensaje_guardado_v13", "v13")
+
+
+def render_v1_4(
+    archivos_locales: list[dict[str, object]],
+    error_carpeta: str | None,
+    guardados: list[dict[str, object]],
+    estrategias_guardadas: list[dict[str, object]],
+):
+    """Version 1.4 optimizada."""
+    vista = st.session_state["vista_v14"]
+    render_navegacion(["Inicio", "Nuevo backtest", "Trading manual", "Estrategias", "Guardados"], "vista_v14")
+    st.markdown("---")
+
+    resultado_actual = st.session_state.get("resultado_lote_v14")
+    render_sidebar_resumen(archivos_locales, guardados, resultado_actual)
+
+    if vista == "Inicio":
+        render_inicio_general(archivos_locales, error_carpeta, guardados, version="1.4")
+        st.success(
+            "La 1.4 usa cache de biblioteca y resultados, filtro de archivos grandes y carga diferida de resultados individuales."
+        )
+        return
+
+    if vista == "Trading manual":
+        render_trading_manual(
+            archivos_locales,
+            error_carpeta,
+            "v14",
+            "manual_v14",
+            modo_optimizado=True,
+        )
+        return
+
+    if vista == "Estrategias":
+        render_estrategias_avanzadas("v14")
+        return
+
+    if vista == "Guardados":
+        render_guardados(guardados, modo_optimizado=True, key_prefix="v14")
+        return
+
+    st.header("Nuevo backtest")
+    st.write(
+        "La version 1.4 mantiene las herramientas avanzadas, pero reduce tiempos de carga con filtros de biblioteca, cache agresiva y render bajo demanda."
+    )
+
+    catalogo = obtener_catalogo_avanzado(estrategias_guardadas)
+    formulario = render_formulario_backtest(
+        archivos_locales,
+        error_carpeta,
+        catalogo,
+        key_prefix="v14",
+        modo_optimizado=True,
+    )
+    render_seleccion_actual(formulario["seleccion_local"], formulario["archivos_subidos"], archivos_locales)
+
+    if formulario["ejecutar"]:
+        ejecutar_y_guardar_lote(
+            formulario,
+            "resultado_lote_v14",
+            "nombre_lote_guardado_v14",
+            "mensaje_guardado_v14",
+            almacenar_datos=False,
+        )
+
+    render_lote_actual(
+        "resultado_lote_v14",
+        "nombre_lote_guardado_v14",
+        "mensaje_guardado_v14",
+        "v14",
+        modo_optimizado=True,
+    )
 
 
 def main():
@@ -1925,18 +2335,26 @@ def main():
     version = st.session_state["version_activa"]
     render_sidebar_version()
 
-    guardados = listar_backtests_guardados()
-    archivos_locales, error_carpeta = listar_archivos_locales(st.session_state["carpeta_datos"])
-
     st.title("Backtester de estrategias Forex")
     st.caption(f"Version activa: {version}")
 
     if version == "1.0":
         render_v1_0()
-    elif version == "1.1":
+        return
+
+    guardados = obtener_guardados_cache(st.session_state["revision_guardados"])
+    estrategias_guardadas = obtener_estrategias_guardadas_cache(st.session_state["revision_estrategias"])
+    archivos_locales, error_carpeta = listar_archivos_locales(
+        st.session_state["carpeta_datos"],
+        st.session_state["revision_biblioteca"],
+    )
+
+    if version == "1.1":
         render_v1_1(archivos_locales, error_carpeta, guardados)
+    elif version == "1.3":
+        render_v1_3(archivos_locales, error_carpeta, guardados, estrategias_guardadas)
     else:
-        render_v1_3(archivos_locales, error_carpeta, guardados)
+        render_v1_4(archivos_locales, error_carpeta, guardados, estrategias_guardadas)
 
 
 if __name__ == "__main__":

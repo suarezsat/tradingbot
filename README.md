@@ -6,7 +6,7 @@ La app funciona completamente offline una vez instaladas las dependencias y esta
 
 ## Que incluye esta version
 
-- Selector inicial de versiones `1.0`, `1.1` y `1.3`.
+- Selector inicial de versiones `1.0`, `1.1`, `1.3` y `1.4`.
 - Version `1.0` con flujo clasico de un archivo y tres estrategias base.
 - Version `1.1` con Inicio, Nuevo backtest y Guardados.
 - Version `1.3` con:
@@ -14,6 +14,12 @@ La app funciona completamente offline una vez instaladas las dependencias y esta
   - lector de graficas para trading manual
   - mas estrategias integradas
   - creador de estrategias personalizadas guardables
+- Version `1.4` con:
+  - cache agresiva para biblioteca local y datasets
+  - filtros para bibliotecas grandes con miles de archivos
+  - resultados individuales cargados bajo demanda
+  - vista de guardados mas ligera
+  - menor consumo de memoria en lotes grandes
 - Carga de archivos desde la interfaz y tambien desde una carpeta local configurada dentro de la app.
 - Soporte para lotes multiarchivo con resultados individuales y resumen global comparativo.
 - Guardado local de backtests para revisarlos despues.
@@ -92,7 +98,9 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 4. Puedes mezclar varios `CSV`, `TXT` y `ZIP` compatibles en el mismo lote.
 5. Elige una estrategia y ajusta parametros y gestion de riesgo.
 6. Ejecuta el lote.
-7. Revisa el resumen global y cada dataset en su propia pestana.
+7. Revisa el resumen global y cada dataset.
+   En `1.1` y `1.3` se muestran en pestanas.
+   En `1.4` se renderiza un solo resultado cada vez para evitar bloqueos con lotes grandes.
 8. Si quieres, guarda el lote para recuperarlo despues en `Guardados`.
 
 ## Formatos de entrada compatibles
@@ -126,7 +134,7 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 - RSI con niveles
 - Bollinger + RSI
 
-### Estrategias extra de la version 1.3
+### Estrategias extra de la version 1.3 y 1.4
 
 - MACD clasico
 - Donchian Breakout
@@ -140,7 +148,7 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 
 ## Estrategias personalizadas
 
-La version `1.3` incluye una seccion `Estrategias` donde puedes:
+Las versiones `1.3` y `1.4` incluyen una seccion `Estrategias` donde puedes:
 
 - elegir una plantilla base
 - ajustar sus parametros
@@ -152,7 +160,7 @@ Las estrategias guardadas se almacenan localmente en `estrategias_guardadas/`.
 
 ## Trading manual
 
-La version `1.3` incluye una vista `Trading manual` para:
+Las versiones `1.3` y `1.4` incluyen una vista `Trading manual` para:
 
 - cargar un dataset unico desde carpeta local o subida manual
 - avanzar vela a vela
