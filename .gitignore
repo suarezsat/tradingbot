@@ -1,5 +1,6 @@
 node_modules/
 .wrangler/
+.playwright-cli/
 *.log
 *.pid
 __pycache__/

@@ -17,6 +17,8 @@ La app funciona completamente offline una vez instaladas las dependencias y esta
 - Version `1.4` con:
   - cache agresiva para biblioteca local y datasets
   - filtros para bibliotecas grandes con miles de archivos
+  - deduplicacion automatica cuando seleccionas ZIP y CSV del mismo dataset
+  - modo rapido para lotes grandes usando las ultimas velas de cada archivo
   - resultados individuales cargados bajo demanda
   - vista de guardados mas ligera
   - menor consumo de memoria en lotes grandes
@@ -102,6 +104,16 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
    En `1.1` y `1.3` se muestran en pestanas.
    En `1.4` se renderiza un solo resultado cada vez para evitar bloqueos con lotes grandes.
 8. Si quieres, guarda el lote para recuperarlo despues en `Guardados`.
+
+## Uso con bibliotecas grandes
+
+La version `1.4` esta pensada para carpetas enormes como `data/histdata_ascii_m1`.
+
+- Por defecto muestra solo CSV para no duplicar el mismo dataset con su ZIP.
+- Si seleccionas a la vez el ZIP y el CSV equivalente, el lote lo deduplica antes de ejecutar.
+- El modo rapido usa por defecto las ultimas `25.000` velas por archivo para que la web siga respondiendo.
+- El limite inicial de ejecucion web es de `250` datasets; puedes bajarlo o subirlo desde la barra lateral.
+- Para estudios completos de todos los anos y todos los pares conviene dividir por par, ano o mes, o usar los scripts de investigacion desde terminal.
 
 ## Formatos de entrada compatibles
 

@@ -54,9 +54,8 @@ def _decodificar_contenido(contenido: bytes) -> str:
     )
 
 
-def detectar_formato_csv(contenido: bytes) -> tuple[str, str]:
-    """Detecta el formato del archivo y el separador usado."""
-    texto = _decodificar_contenido(contenido)
+def _detectar_formato_texto(texto: str) -> tuple[str, str]:
+    """Detecta el formato del archivo y el separador usado sobre texto ya decodificado."""
     primera_linea = next((linea.strip() for linea in texto.splitlines() if linea.strip()), "")
 
     if not primera_linea:
@@ -87,6 +86,32 @@ def detectar_formato_csv(contenido: bytes) -> tuple[str, str]:
     raise CSVFormatoError(
         "Formato CSV no reconocido. Usa un archivo HistData, Dukascopy o MetaTrader con columnas OHLCV."
     )
+
+
+def detectar_formato_csv(contenido: bytes) -> tuple[str, str]:
+    """Detecta el formato del archivo y el separador usado."""
+    return _detectar_formato_texto(_decodificar_contenido(contenido))
+
+
+def _recortar_texto_csv(texto: str, max_filas: int | None) -> str:
+    """Conserva solo las ultimas filas utiles manteniendo cabecera si existe."""
+    if not max_filas or max_filas <= 0:
+        return texto
+
+    lineas = [linea for linea in texto.splitlines() if linea.strip()]
+    if len(lineas) <= max_filas + 1:
+        return texto
+
+    primera_linea = lineas[0].strip().lower()
+    tiene_cabecera = any(
+        columna in primera_linea
+        for columna in ("datetime", "time", "date", "open", "high", "low", "close")
+    )
+
+    if tiene_cabecera:
+        return "\n".join([lineas[0], *lineas[-max_filas:]])
+
+    return "\n".join(lineas[-max_filas:])
 
 
 def _leer_csv(
@@ -182,10 +207,11 @@ def _normalizar_dataframe(df: pd.DataFrame, columna_fecha: pd.Series) -> pd.Data
     return datos
 
 
-def cargar_contenido_ohlcv(contenido: bytes) -> tuple[pd.DataFrame, str]:
+def cargar_contenido_ohlcv(contenido: bytes, max_filas: int | None = None) -> tuple[pd.DataFrame, str]:
     """Normaliza contenido en bruto a un DataFrame OHLCV."""
-    formato, separador = detectar_formato_csv(contenido)
     texto = _decodificar_contenido(contenido)
+    formato, separador = _detectar_formato_texto(texto)
+    texto = _recortar_texto_csv(texto, max_filas)
     sin_cabecera = formato.endswith("_sin_cabecera")
 
     if formato == "histdata_sin_cabecera":
@@ -244,9 +270,9 @@ def cargar_csv_ohlcv(archivo) -> tuple[pd.DataFrame, str]:
     return cargar_contenido_ohlcv(archivo.getvalue())
 
 
-def cargar_fuente_ohlcv(fuente: FuenteArchivo) -> tuple[pd.DataFrame, str]:
+def cargar_fuente_ohlcv(fuente: FuenteArchivo, max_filas: int | None = None) -> tuple[pd.DataFrame, str]:
     """Carga una fuente genetrica ya sea local, subida o extraida de un ZIP."""
-    return cargar_contenido_ohlcv(fuente.contenido)
+    return cargar_contenido_ohlcv(fuente.contenido, max_filas=max_filas)
 
 
 def leer_fuente_local(ruta: str | Path) -> FuenteArchivo:

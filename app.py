@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import math
 import re
+import warnings
 
 import pandas as pd
 import plotly.express as px
@@ -70,6 +71,9 @@ RUTA_APP = Path(__file__).resolve().parent
 RUTA_CAPTURAS = RUTA_APP / "assets" / "capturas"
 APALANCAMIENTO_POR_DEFECTO = 30.0
 EXTENSIONES_CARPETA = {".csv", ".zip"}
+LIMITE_WEB_COMPLETO_V14 = 25
+LIMITE_WEB_RAPIDO_V14 = 250
+VELAS_RAPIDAS_DEFECTO_V14 = 25_000
 DIRECTORIOS_EXCLUIDOS_BIBLIOTECA = {
     ".git",
     ".playwright-cli",
@@ -212,9 +216,12 @@ def recopilar_fuentes_locales_cache(
 
 
 @st.cache_data(show_spinner=False, max_entries=128)
-def cargar_fuente_ohlcv_cache(fuente: FuenteArchivo) -> tuple[pd.DataFrame, str]:
+def cargar_fuente_ohlcv_cache(
+    fuente: FuenteArchivo,
+    max_filas: int | None = None,
+) -> tuple[pd.DataFrame, str]:
     """Carga OHLCV y lo reutiliza entre reruns y vistas."""
-    return cargar_fuente_ohlcv(fuente)
+    return cargar_fuente_ohlcv(fuente, max_filas=max_filas)
 
 
 def cambiar_version(version: str | None):
@@ -383,20 +390,26 @@ def construir_parametros_estrategia(
 
 def ejecutar_backtest(datos: pd.DataFrame, clase_estrategia, parametros: dict[str, float]):
     """Lanza el motor de backtesting con los parametros elegidos."""
-    motor = Backtest(
-        datos,
-        clase_estrategia,
-        cash=float(parametros["capital_inicial"]),
-        commission=0.0,
-        margin=1 / float(parametros["leverage"]),
-        trade_on_close=False,
-        hedging=False,
-        exclusive_orders=False,
-        finalize_trades=True,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Some prices are larger than initial cash value.*",
+            category=UserWarning,
+        )
+        motor = Backtest(
+            datos,
+            clase_estrategia,
+            cash=float(parametros["capital_inicial"]),
+            commission=0.0,
+            margin=1 / float(parametros["leverage"]),
+            trade_on_close=False,
+            hedging=False,
+            exclusive_orders=False,
+            finalize_trades=True,
+        )
 
-    parametros_run = {k: v for k, v in parametros.items() if k not in {"capital_inicial", "leverage"}}
-    return motor.run(**parametros_run)
+        parametros_run = {k: v for k, v in parametros.items() if k not in {"capital_inicial", "leverage"}}
+        return motor.run(**parametros_run)
 
 
 def crear_grafico_velas(datos: pd.DataFrame, trades: pd.DataFrame, velas_a_mostrar: int) -> go.Figure:
@@ -824,6 +837,23 @@ def filtrar_archivos_locales(
     return filtrados
 
 
+def clave_canonica_fuente(fuente: FuenteArchivo) -> str:
+    """Deduplica CSV y ZIP que contienen el mismo dataset de HistData."""
+    texto = f"{fuente.ruta or ''} {fuente.nombre}".replace("\\", "/").upper()
+    patrones = [
+        r"DAT_ASCII_([A-Z0-9]+)_M1_(\d{4})(?:_(\d{2}))?\.CSV",
+        r"HISTDATA_COM_ASCII_([A-Z0-9]+)_M1_(\d{4})(?:_(\d{2}))?\.ZIP",
+    ]
+
+    for patron in patrones:
+        coincidencia = re.search(patron, texto)
+        if coincidencia:
+            par, ano, mes = coincidencia.groups()
+            return f"histdata:{par}:{ano}:{mes or 'FULL'}"
+
+    return fuente.ruta or f"{fuente.origen}:{fuente.nombre}:{len(fuente.contenido)}"
+
+
 def recopilar_fuentes(rutas_locales: list[str], archivos_subidos) -> tuple[list[FuenteArchivo], list[dict[str, str]]]:
     """Convierte selecciones locales y subidas en una lista comun de fuentes."""
     fuentes = []
@@ -835,7 +865,7 @@ def recopilar_fuentes(rutas_locales: list[str], archivos_subidos) -> tuple[list[
             mtime_ns, tamano_bytes = obtener_firma_archivo_local(ruta)
             expandidas = recopilar_fuentes_locales_cache(ruta, mtime_ns, tamano_bytes)
             for item in expandidas:
-                clave = item.ruta or f"{item.origen}:{item.nombre}:{len(item.contenido)}"
+                clave = clave_canonica_fuente(item)
                 if clave not in claves_vistas:
                     fuentes.append(item)
                     claves_vistas.add(clave)
@@ -851,7 +881,7 @@ def recopilar_fuentes(rutas_locales: list[str], archivos_subidos) -> tuple[list[
             )
             expandidas = expandir_fuente_archivo(fuente)
             for item in expandidas:
-                clave = item.ruta or f"{item.origen}:{item.nombre}:{len(item.contenido)}"
+                clave = clave_canonica_fuente(item)
                 if clave not in claves_vistas:
                     fuentes.append(item)
                     claves_vistas.add(clave)
@@ -866,6 +896,7 @@ def ejecutar_lote_backtests(
     clase_estrategia,
     parametros_base: dict[str, object],
     almacenar_datos: bool = True,
+    max_filas_por_fuente: int | None = None,
 ) -> list[dict[str, object]]:
     """Procesa multiples fuentes y devuelve sus resultados individuales."""
     resultados = []
@@ -875,7 +906,7 @@ def ejecutar_lote_backtests(
     for indice, fuente in enumerate(fuentes, start=1):
         estado.info(f"Procesando {indice}/{len(fuentes)}: {fuente.nombre}")
         try:
-            datos, formato = cargar_fuente_ohlcv_cache(fuente)
+            datos, formato = cargar_fuente_ohlcv_cache(fuente, max_filas_por_fuente)
             pip_size = inferir_tamano_pip(datos)
 
             parametros = {
@@ -1138,7 +1169,7 @@ def render_formulario_backtest(
                 extensiones_locales = st.multiselect(
                     "Tipos visibles",
                     options=sorted(EXTENSIONES_CARPETA),
-                    default=sorted(EXTENSIONES_CARPETA),
+                    default=[".csv"] if modo_optimizado else sorted(EXTENSIONES_CARPETA),
                     key=f"{key_prefix}_extensiones_local",
                 )
                 limite_local = st.slider(
@@ -1252,6 +1283,37 @@ def render_formulario_backtest(
             key=f"{key_prefix}_distancia_trailing",
         )
 
+        modo_rapido_lotes = False
+        max_filas_por_fuente = None
+        max_fuentes_web = None
+        if modo_optimizado:
+            st.markdown("---")
+            st.markdown("**Control de lotes grandes**")
+            modo_rapido_lotes = st.checkbox(
+                "Modo rapido para lotes grandes",
+                value=True,
+                key=f"{key_prefix}_modo_rapido_lotes",
+                help="Procesa solo las ultimas velas de cada archivo para que la web no se quede bloqueada con lotes masivos.",
+            )
+            max_filas_por_fuente = st.number_input(
+                "Velas maximas por archivo",
+                min_value=10_000,
+                max_value=500_000,
+                value=VELAS_RAPIDAS_DEFECTO_V14,
+                step=5_000,
+                disabled=not modo_rapido_lotes,
+                key=f"{key_prefix}_max_filas_lote",
+            )
+            max_fuentes_web = st.number_input(
+                "Maximo de archivos por ejecucion web",
+                min_value=1,
+                max_value=1000,
+                value=LIMITE_WEB_RAPIDO_V14,
+                step=25,
+                key=f"{key_prefix}_max_fuentes_web",
+                help="Para pruebas enormes conviene partir por par o por ano. Esto evita sesiones web colgadas.",
+            )
+
         ejecutar = st.button("Ejecutar lote de backtesting", type="primary", use_container_width=True, key=f"{key_prefix}_ejecutar")
 
     session_start, session_end = SESIONES_TRADING[sesion]
@@ -1276,6 +1338,10 @@ def render_formulario_backtest(
         "parametros": parametros,
         "ejecutar": ejecutar,
         "catalogo_item": catalogo_estrategias[estrategia_seleccionada],
+        "modo_optimizado": modo_optimizado,
+        "modo_rapido_lotes": bool(modo_rapido_lotes),
+        "max_filas_por_fuente": int(max_filas_por_fuente) if max_filas_por_fuente else None,
+        "max_fuentes_web": int(max_fuentes_web) if max_fuentes_web else None,
     }
 
 
@@ -1591,12 +1657,38 @@ def ejecutar_y_guardar_lote(
             st.dataframe(pd.DataFrame(errores_fuente), use_container_width=True, hide_index=True)
         return
 
+    modo_optimizado = bool(formulario.get("modo_optimizado"))
+    modo_rapido = bool(formulario.get("modo_rapido_lotes"))
+    max_fuentes_web = int(formulario.get("max_fuentes_web") or LIMITE_WEB_COMPLETO_V14)
+    max_filas_por_fuente = formulario.get("max_filas_por_fuente") if modo_rapido else None
+
+    if modo_optimizado and len(fuentes) > max_fuentes_web:
+        st.error(
+            f"Has seleccionado {len(fuentes)} datasets despues de deduplicar ZIP/CSV. "
+            f"El limite actual de la ejecucion web es {max_fuentes_web}. "
+            "Filtra por par, ano o sube el limite si quieres asumir mas tiempo de calculo."
+        )
+        return
+
+    if modo_optimizado and len(fuentes) > LIMITE_WEB_COMPLETO_V14 and not modo_rapido:
+        st.error(
+            f"Has seleccionado {len(fuentes)} datasets completos. "
+            f"Para mas de {LIMITE_WEB_COMPLETO_V14} archivos activa el modo rapido o divide el lote."
+        )
+        return
+
+    if modo_optimizado and modo_rapido and max_filas_por_fuente:
+        st.info(
+            f"Modo rapido activo: se usaran como maximo las ultimas {int(max_filas_por_fuente):,} velas por archivo."
+        )
+
     clase_estrategia = formulario["catalogo_item"]["clase"]
     resultados = ejecutar_lote_backtests(
         fuentes,
         clase_estrategia,
         formulario["parametros"],
         almacenar_datos=almacenar_datos,
+        max_filas_por_fuente=int(max_filas_por_fuente) if max_filas_por_fuente else None,
     )
 
     for error in errores_fuente:
