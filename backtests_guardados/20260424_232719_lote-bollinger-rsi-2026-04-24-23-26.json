@@ -1,0 +1,54 @@
+{
+  "nombre_lote": "Lote Bollinger + RSI 2026-04-24 23:26",
+  "fecha_guardado": "2026-04-24T23:27:19",
+  "estrategia": "Bollinger + RSI",
+  "parametros": {
+    "bollinger_periodo": 20,
+    "desviaciones": 2.0,
+    "rsi_periodo": 14,
+    "stop_loss_pips": 20,
+    "take_profit_pips": 40,
+    "risk_per_trade": 1.0,
+    "max_open_trades": 1,
+    "session_start": -1,
+    "session_end": -1,
+    "usar_trailing_stop": false,
+    "trailing_stop_pips": 20,
+    "capital_inicial": 100.0,
+    "leverage": 30.0
+  },
+  "resumen_global": {
+    "archivos_totales": 1,
+    "archivos_exitosos": 1,
+    "archivos_fallidos": 0,
+    "operaciones_totales": 587,
+    "rentabilidad_media": 51.864819999998815,
+    "win_rate_medio": 78.53492333901193,
+    "mejor_archivo": "DAT_ASCII_EURCHF_M1_2011.csv",
+    "peor_drawdown": -2.7584738690266453
+  },
+  "archivos": [
+    {
+      "archivo": "DAT_ASCII_EURCHF_M1_2011.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\02_EURCHF\\2011\\full_year\\extracted\\DAT_ASCII_EURCHF_M1_2011.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2011-12-06T15:41:00",
+      "fin": "2011-12-30T16:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 51.864819999998815,
+        "total_operaciones": 587,
+        "win_rate": 78.53492333901193,
+        "ratio_rr_real": 0.6989333229733975,
+        "drawdown_maximo": -2.7584738690266453,
+        "sharpe_ratio": 6.033418100407927,
+        "profit_factor": 2.4627356287261093,
+        "mejor_operacion": 2.404479999999966,
+        "peor_operacion": -1.4592599999998876,
+        "duracion_media": "0 days 00:59:36.797274"
+      }
+    }
+  ]
+}

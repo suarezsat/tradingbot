@@ -1,0 +1,230 @@
+{
+  "nombre_lote": "Lote Bollinger + RSI 2026-04-24 23:31",
+  "fecha_guardado": "2026-04-24T23:33:09",
+  "estrategia": "Bollinger + RSI",
+  "parametros": {
+    "bollinger_periodo": 20,
+    "desviaciones": 2.0,
+    "rsi_periodo": 14,
+    "stop_loss_pips": 20,
+    "take_profit_pips": 40,
+    "risk_per_trade": 1.0,
+    "max_open_trades": 1,
+    "session_start": -1,
+    "session_end": -1,
+    "usar_trailing_stop": false,
+    "trailing_stop_pips": 20,
+    "capital_inicial": 700.0,
+    "leverage": 30.0
+  },
+  "resumen_global": {
+    "archivos_totales": 9,
+    "archivos_exitosos": 9,
+    "archivos_fallidos": 0,
+    "operaciones_totales": 5378,
+    "rentabilidad_media": 12.599287142856777,
+    "win_rate_medio": 65.37433824775958,
+    "mejor_archivo": "DAT_ASCII_EURCHF_M1_2011.csv",
+    "peor_drawdown": -16.31392892821418
+  },
+  "archivos": [
+    {
+      "archivo": "DAT_ASCII_EURCHF_M1_2011.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\02_EURCHF\\2011\\full_year\\extracted\\DAT_ASCII_EURCHF_M1_2011.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2011-12-06T15:41:00",
+      "fin": "2011-12-30T16:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 55.354167142856184,
+        "total_operaciones": 591,
+        "win_rate": 78.51099830795262,
+        "ratio_rr_real": 0.7470987269588883,
+        "drawdown_maximo": -2.761757732602621,
+        "sharpe_ratio": 5.179683731008855,
+        "profit_factor": 2.4774341020047657,
+        "mejor_operacion": 17.11423999999976,
+        "peor_operacion": -10.454009999999196,
+        "duracion_media": "0 days 00:59:22.436548"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_EURUSD_M1_2003.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\01_EURUSD\\2003\\full_year\\extracted\\DAT_ASCII_EURUSD_M1_2003.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2003-12-02T16:42:00",
+      "fin": "2003-12-31T14:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 0.9469571428576437,
+        "total_operaciones": 656,
+        "win_rate": 62.04268292682927,
+        "ratio_rr_real": 0.5558956803354488,
+        "drawdown_maximo": -16.011288491575925,
+        "sharpe_ratio": -0.0644526872677177,
+        "profit_factor": 1.024144091400534,
+        "mejor_operacion": 14.156000000000013,
+        "peor_operacion": -47.35800000000024,
+        "duracion_media": "0 days 01:05:00.640243"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_EURUSD_M1_2000.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\01_EURUSD\\2000\\full_year\\extracted\\DAT_ASCII_EURUSD_M1_2000.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2000-11-27T03:28:00",
+      "fin": "2000-12-29T11:25:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 0.23467142857136225,
+        "total_operaciones": 659,
+        "win_rate": 61.001517450682854,
+        "ratio_rr_real": 0.6107386033128207,
+        "drawdown_maximo": -16.31392892821418,
+        "sharpe_ratio": 0.8261311079699927,
+        "profit_factor": 1.031050203569808,
+        "mejor_operacion": 12.994799999999943,
+        "peor_operacion": -11.053399999999865,
+        "duracion_media": "0 days 01:07:06.373292"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_EURUSD_M1_2002.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\01_EURUSD\\2002\\full_year\\extracted\\DAT_ASCII_EURUSD_M1_2002.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2002-11-25T22:13:00",
+      "fin": "2002-12-31T12:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 20.9538857142848,
+        "total_operaciones": 616,
+        "win_rate": 64.77272727272727,
+        "ratio_rr_real": 0.6449811609334614,
+        "drawdown_maximo": -5.720831108798641,
+        "sharpe_ratio": 3.4033225320897227,
+        "profit_factor": 1.2009870895707087,
+        "mejor_operacion": 16.241399999999928,
+        "peor_operacion": -8.723399999999963,
+        "duracion_media": "0 days 01:29:20.162337"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_EURCHF_M1_2004.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\02_EURCHF\\2004\\full_year\\extracted\\DAT_ASCII_EURCHF_M1_2004.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2004-11-29T05:18:00",
+      "fin": "2004-12-31T17:00:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 15.96861428571458,
+        "total_operaciones": 583,
+        "win_rate": 67.06689536878217,
+        "ratio_rr_real": 0.5860151435620161,
+        "drawdown_maximo": -4.842535297255612,
+        "sharpe_ratio": 3.4862245584792784,
+        "profit_factor": 1.443805470741521,
+        "mejor_operacion": 11.87699999999957,
+        "peor_operacion": -8.063999999999965,
+        "duracion_media": "0 days 01:22:26.346483"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_EURUSD_M1_202603.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\01_EURUSD\\2026\\months\\03_March\\extracted\\DAT_ASCII_EURUSD_M1_202603.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2026-03-06T13:32:00",
+      "fin": "2026-03-31T23:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 2.508610000000187,
+        "total_operaciones": 573,
+        "win_rate": 62.30366492146597,
+        "ratio_rr_real": 0.6162841699605721,
+        "drawdown_maximo": -10.308913425637057,
+        "sharpe_ratio": 0.4938993824262795,
+        "profit_factor": 1.0447758119005695,
+        "mejor_operacion": 13.587599999999703,
+        "peor_operacion": -7.485239999999424,
+        "duracion_media": "0 days 01:05:28.272251"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_EURCHF_M1_2003.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\02_EURCHF\\2003\\full_year\\extracted\\DAT_ASCII_EURCHF_M1_2003.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2003-12-01T10:10:00",
+      "fin": "2003-12-31T14:59:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 10.908957142855877,
+        "total_operaciones": 586,
+        "win_rate": 62.45733788395904,
+        "ratio_rr_real": 0.6230635344691346,
+        "drawdown_maximo": -5.668037235710177,
+        "sharpe_ratio": 2.764897473069597,
+        "profit_factor": 1.2383607848221503,
+        "mejor_operacion": 10.623000000000403,
+        "peor_operacion": -8.034599999999966,
+        "duracion_media": "0 days 01:16:07.064846"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_USDCAD_M1_202602.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\06_USDCAD\\2026\\months\\02_February\\extracted\\DAT_ASCII_USDCAD_M1_202602.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2026-02-04T06:19:00",
+      "fin": "2026-02-27T16:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 3.9014714285710363,
+        "total_operaciones": 547,
+        "win_rate": 66.54478976234005,
+        "ratio_rr_real": 0.5550578510438314,
+        "drawdown_maximo": -7.9102169392074595,
+        "sharpe_ratio": 1.4676105230731273,
+        "profit_factor": 1.0961416030898734,
+        "mejor_operacion": 10.068160000000116,
+        "peor_operacion": -7.191200000000473,
+        "duracion_media": "0 days 01:02:49.908592"
+      }
+    },
+    {
+      "archivo": "DAT_ASCII_USDCAD_M1_202601.csv",
+      "origen": "Carpeta local",
+      "ruta": "data\\histdata_ascii_m1\\06_USDCAD\\2026\\months\\01_January\\extracted\\DAT_ASCII_USDCAD_M1_202601.csv",
+      "formato": "HistData.com",
+      "velas": 25000,
+      "inicio": "2026-01-07T07:32:00",
+      "fin": "2026-01-30T16:58:00",
+      "pip_size": 0.0001,
+      "metricas": {
+        "rentabilidad_total": 2.616249999999322,
+        "total_operaciones": 567,
+        "win_rate": 63.66843033509701,
+        "ratio_rr_real": 0.5888309448815875,
+        "drawdown_maximo": -7.2339447220651,
+        "sharpe_ratio": 1.5725345151951213,
+        "profit_factor": 1.090840039156095,
+        "mejor_operacion": 14.08571999999987,
+        "peor_operacion": -7.5292699999999115,
+        "duracion_media": "0 days 01:00:39.365079"
+      }
+    }
+  ]
+}
