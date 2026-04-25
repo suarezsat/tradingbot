@@ -16,10 +16,11 @@ La app funciona completamente offline una vez instaladas las dependencias y esta
   - creador de estrategias personalizadas guardables
 - Version `1.4` con:
   - cache agresiva para biblioteca local y datasets
-  - filtros para bibliotecas grandes con miles de archivos
+  - filtros jerarquicos por par, anio, full year y meses para bibliotecas grandes
   - deduplicacion automatica cuando seleccionas ZIP y CSV del mismo dataset
   - modo rapido para lotes grandes usando las ultimas velas de cada archivo
   - resultados individuales cargados bajo demanda
+  - indicadores de beneficio estimado y capital final estimado a partir del capital inicial
   - vista de guardados mas ligera
   - menor consumo de memoria en lotes grandes
 - Carga de archivos desde la interfaz y tambien desde una carpeta local configurada dentro de la app.
@@ -110,9 +111,11 @@ Ese es el comando recomendado en Windows para evitar problemas cuando `streamlit
 La version `1.4` esta pensada para carpetas enormes como `data/histdata_ascii_m1`.
 
 - Por defecto muestra solo CSV para no duplicar el mismo dataset con su ZIP.
+- Puedes filtrar la biblioteca por par/divisa, anio, bloque temporal y meses sin perder el orden de instrumentos.
 - Si seleccionas a la vez el ZIP y el CSV equivalente, el lote lo deduplica antes de ejecutar.
 - El modo rapido usa por defecto las ultimas `25.000` velas por archivo para que la web siga respondiendo.
 - El limite inicial de ejecucion web es de `250` datasets; puedes bajarlo o subirlo desde la barra lateral.
+- El resumen global y la tabla comparativa incluyen beneficio estimado y capital final estimado tomando el mismo capital inicial base para cada archivo.
 - Para estudios completos de todos los anos y todos los pares conviene dividir por par, ano o mes, o usar los scripts de investigacion desde terminal.
 
 ## Formatos de entrada compatibles

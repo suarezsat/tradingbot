@@ -114,6 +114,152 @@ VERSIONES_APP = {
 }
 
 
+MESES_BIBLIOTECA = {
+    "01": "January",
+    "02": "February",
+    "03": "March",
+    "04": "April",
+    "05": "May",
+    "06": "June",
+    "07": "July",
+    "08": "August",
+    "09": "September",
+    "10": "October",
+    "11": "November",
+    "12": "December",
+}
+PATRON_MES_BIBLIOTECA = re.compile(
+    r"\d{2}_(January|February|March|April|May|June|July|August|September|October|November|December)$",
+    re.IGNORECASE,
+)
+
+
+def lista_unica(valores: list[object]) -> list[object]:
+    """Conserva el orden original eliminando duplicados y vacios."""
+    vistos = set()
+    resultado = []
+    for valor in valores:
+        if valor in (None, "", "Sin clasificar"):
+            continue
+        if valor in vistos:
+            continue
+        vistos.add(valor)
+        resultado.append(valor)
+    return resultado
+
+
+def valor_entero_seguro(valor: object, fallback: int = 0) -> int:
+    """Convierte un valor a entero devolviendo un fallback si falla."""
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def extraer_metadatos_biblioteca(relativo: str) -> dict[str, object]:
+    """Clasifica una ruta local por par, anio y bloque temporal."""
+    texto = relativo.replace("\\", "/")
+    partes = [parte for parte in texto.split("/") if parte]
+    partes_minusculas = [parte.lower() for parte in partes]
+    nombre_archivo = Path(texto).name
+
+    par = "Sin clasificar"
+    par_orden = 9_999
+    anio = None
+    periodo_tipo = "other"
+    periodo_etiqueta = "Sin clasificar"
+    mes_codigo = None
+    mes_etiqueta = None
+
+    if partes:
+        coincidencia_par = re.fullmatch(r"(?P<orden>\d+)_([A-Z0-9]+)", partes[0].upper())
+        if coincidencia_par:
+            par_orden = int(coincidencia_par.group("orden"))
+            par = partes[0].split("_", 1)[1].upper()
+
+    for parte in partes:
+        if re.fullmatch(r"\d{4}", parte):
+            anio = parte
+            break
+
+    for parte in partes:
+        if PATRON_MES_BIBLIOTECA.fullmatch(parte):
+            mes_codigo = parte.split("_", 1)[0]
+            mes_etiqueta = parte
+            periodo_tipo = "month"
+            periodo_etiqueta = parte
+            break
+
+    if "full_year" in partes_minusculas:
+        periodo_tipo = "full_year"
+        periodo_etiqueta = "Full year"
+
+    patron_histdata = re.search(
+        r"(?:DAT_ASCII_|HISTDATA_COM_ASCII_)(?P<par>[A-Z0-9]+)_M1_(?P<anio>\d{4})(?:_(?P<mes>\d{2}))?",
+        nombre_archivo.upper(),
+    )
+    if patron_histdata:
+        if par == "Sin clasificar":
+            par = patron_histdata.group("par")
+        if anio is None:
+            anio = patron_histdata.group("anio")
+        if not mes_codigo and patron_histdata.group("mes"):
+            mes_codigo = patron_histdata.group("mes")
+
+    if periodo_tipo == "other" and mes_codigo:
+        periodo_tipo = "month"
+        mes_etiqueta = f"{mes_codigo}_{MESES_BIBLIOTECA.get(mes_codigo, 'Month')}"
+        periodo_etiqueta = mes_etiqueta
+
+    if periodo_tipo == "month" and not mes_etiqueta and mes_codigo:
+        mes_etiqueta = f"{mes_codigo}_{MESES_BIBLIOTECA.get(mes_codigo, 'Month')}"
+        periodo_etiqueta = mes_etiqueta
+
+    bloque_fecha = "Sin fecha"
+    carpeta_virtual = par
+    if anio and periodo_tipo == "full_year":
+        bloque_fecha = f"{anio} / Full year"
+        carpeta_virtual = f"{par}/{anio}/full_year"
+    elif anio and periodo_tipo == "month" and mes_etiqueta:
+        bloque_fecha = f"{anio} / {mes_etiqueta}"
+        carpeta_virtual = f"{par}/{anio}/months/{mes_etiqueta}"
+    elif anio:
+        bloque_fecha = f"{anio} / Sin clasificar"
+        carpeta_virtual = f"{par}/{anio}"
+
+    return {
+        "par": par,
+        "par_orden": par_orden,
+        "anio": anio,
+        "periodo_tipo": periodo_tipo,
+        "periodo_etiqueta": periodo_etiqueta,
+        "mes_codigo": mes_codigo,
+        "mes_etiqueta": mes_etiqueta,
+        "bloque_fecha": bloque_fecha,
+        "carpeta_virtual": carpeta_virtual,
+    }
+
+
+def ordenar_archivos_locales(archivos: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Ordena la biblioteca por par, anio y bloque temporal."""
+    def clave_orden(item: dict[str, object]) -> tuple[object, ...]:
+        prioridad_periodo = {
+            "full_year": 0,
+            "month": 1,
+            "other": 2,
+        }.get(str(item.get("periodo_tipo")), 3)
+        return (
+            valor_entero_seguro(item.get("par_orden"), fallback=9_999),
+            str(item.get("par") or ""),
+            valor_entero_seguro(item.get("anio"), fallback=0),
+            prioridad_periodo,
+            valor_entero_seguro(item.get("mes_codigo"), fallback=0),
+            str(item.get("relativo") or ""),
+        )
+
+    return sorted(archivos, key=clave_orden)
+
+
 def obtener_carpeta_datos_predeterminada() -> Path:
     """Sugiere una carpeta local de datos segun el entorno."""
     candidatas = [
@@ -659,6 +805,29 @@ def mostrar_metricas(metricas: dict[str, object]):
     fila_2[4].metric("Duracion media", formatear_duracion(metricas["duracion_media"]))
 
 
+def enriquecer_metricas_capital(metricas: dict[str, object], capital_inicial: object) -> dict[str, object]:
+    """Anade importes estimados tomando la rentabilidad sobre el capital inicial."""
+    metricas_enriquecidas = dict(metricas)
+
+    try:
+        capital_base = float(capital_inicial)
+    except (TypeError, ValueError):
+        capital_base = math.nan
+
+    rentabilidad = metricas_enriquecidas.get("rentabilidad_total")
+    if pd.isna(capital_base) or capital_base <= 0 or rentabilidad is None or pd.isna(rentabilidad):
+        metricas_enriquecidas["capital_inicial_base"] = None
+        metricas_enriquecidas["beneficio_estimado"] = None
+        metricas_enriquecidas["capital_final_estimado"] = None
+        return metricas_enriquecidas
+
+    beneficio_estimado = capital_base * float(rentabilidad) / 100.0
+    metricas_enriquecidas["capital_inicial_base"] = capital_base
+    metricas_enriquecidas["beneficio_estimado"] = float(beneficio_estimado)
+    metricas_enriquecidas["capital_final_estimado"] = float(capital_base + beneficio_estimado)
+    return metricas_enriquecidas
+
+
 def preparar_resumen_motor(stats) -> pd.DataFrame:
     """Convierte el resumen del motor a una tabla amigable."""
     filas = []
@@ -711,6 +880,8 @@ def construir_tabla_comparativa(resultados: list[dict[str, object]]) -> pd.DataF
                 "Desde": resultado["inicio"],
                 "Hasta": resultado["fin"],
                 "Rentabilidad total (%)": metricas["rentabilidad_total"],
+                "Beneficio estimado ($)": metricas.get("beneficio_estimado"),
+                "Capital final estimado ($)": metricas.get("capital_final_estimado"),
                 "Operaciones": metricas["total_operaciones"],
                 "Win rate (%)": metricas["win_rate"],
                 "Ratio R/R real": metricas["ratio_rr_real"],
@@ -726,7 +897,10 @@ def construir_tabla_comparativa(resultados: list[dict[str, object]]) -> pd.DataF
     return pd.DataFrame(filas)
 
 
-def calcular_resumen_global(resultados: list[dict[str, object]]) -> dict[str, object]:
+def calcular_resumen_global(
+    resultados: list[dict[str, object]],
+    capital_inicial: float | None = None,
+) -> dict[str, object]:
     """Resume un lote completo de backtests."""
     exitosos = [resultado for resultado in resultados if not resultado.get("error")]
     fallidos = [resultado for resultado in resultados if resultado.get("error")]
@@ -737,6 +911,10 @@ def calcular_resumen_global(resultados: list[dict[str, object]]) -> dict[str, ob
             "archivos_exitosos": 0,
             "archivos_fallidos": len(fallidos),
             "operaciones_totales": 0,
+            "capital_inicial_base": float(capital_inicial) if capital_inicial is not None else None,
+            "beneficio_total_estimado": None,
+            "beneficio_medio_estimado": None,
+            "capital_final_medio_estimado": None,
             "rentabilidad_media": None,
             "win_rate_medio": None,
             "mejor_archivo": "N/D",
@@ -746,12 +924,20 @@ def calcular_resumen_global(resultados: list[dict[str, object]]) -> dict[str, ob
     tabla = construir_tabla_comparativa(exitosos)
     indice_mejor = tabla["Rentabilidad total (%)"].idxmax()
     mejor_archivo = tabla.loc[indice_mejor, "Archivo"]
+    beneficios = tabla["Beneficio estimado ($)"].dropna() if "Beneficio estimado ($)" in tabla else pd.Series(dtype=float)
+    capitales_finales = (
+        tabla["Capital final estimado ($)"].dropna() if "Capital final estimado ($)" in tabla else pd.Series(dtype=float)
+    )
 
     return {
         "archivos_totales": len(resultados),
         "archivos_exitosos": len(exitosos),
         "archivos_fallidos": len(fallidos),
         "operaciones_totales": int(tabla["Operaciones"].sum()),
+        "capital_inicial_base": float(capital_inicial) if capital_inicial is not None else None,
+        "beneficio_total_estimado": float(beneficios.sum()) if not beneficios.empty else None,
+        "beneficio_medio_estimado": float(beneficios.mean()) if not beneficios.empty else None,
+        "capital_final_medio_estimado": float(capitales_finales.mean()) if not capitales_finales.empty else None,
         "rentabilidad_media": float(tabla["Rentabilidad total (%)"].mean()),
         "win_rate_medio": float(tabla["Win rate (%)"].mean()),
         "mejor_archivo": mejor_archivo,
@@ -795,7 +981,11 @@ def listar_archivos_locales(
                 continue
 
             relativo = archivo.relative_to(ruta).as_posix()
-            etiqueta = f"{relativo}  |  {extension.replace('.', '').upper()}  |  {tamano_mb:.2f} MB"
+            metadatos = extraer_metadatos_biblioteca(relativo)
+            etiqueta = (
+                f"{metadatos['par']}  |  {metadatos['bloque_fecha']}  |  "
+                f"{relativo}  |  {extension.replace('.', '').upper()}  |  {tamano_mb:.2f} MB"
+            )
 
             archivos.append(
                 {
@@ -804,26 +994,53 @@ def listar_archivos_locales(
                     "extension": extension,
                     "tamano_mb": tamano_mb,
                     "etiqueta": etiqueta,
+                    **metadatos,
                 }
             )
 
-    return archivos, None
+    return ordenar_archivos_locales(archivos), None
 
 
 def filtrar_archivos_locales(
     archivos_locales: list[dict[str, object]],
     texto_busqueda: str = "",
     extensiones: list[str] | None = None,
+    pares: list[str] | None = None,
+    anios: list[str] | None = None,
+    periodos: list[str] | None = None,
+    meses: list[str] | None = None,
     limite: int | None = None,
 ) -> list[dict[str, object]]:
     """Reduce la biblioteca visible para que la interfaz no cargue miles de opciones."""
     texto = texto_busqueda.strip().lower()
     extensiones_activas = {extension.lower() for extension in extensiones or EXTENSIONES_CARPETA}
+    pares_activos = {str(par) for par in pares or []}
+    anios_activos = {str(anio) for anio in anios or []}
+    periodos_activos = {str(periodo) for periodo in periodos or []}
+    meses_activos = {str(mes) for mes in meses or []}
     filtrados = []
 
     for item in archivos_locales:
         if item["extension"] not in extensiones_activas:
             continue
+
+        if pares_activos and str(item.get("par")) not in pares_activos:
+            continue
+
+        if anios_activos and str(item.get("anio") or "") not in anios_activos:
+            continue
+
+        if periodos_activos and str(item.get("periodo_tipo")) not in periodos_activos:
+            continue
+
+        if meses_activos:
+            if str(item.get("periodo_tipo")) != "month":
+                continue
+            if (
+                str(item.get("mes_codigo") or "") not in meses_activos
+                and str(item.get("mes_etiqueta") or "") not in meses_activos
+            ):
+                continue
 
         relativo = str(item["relativo"])
         if texto and texto not in relativo.lower():
@@ -918,6 +1135,10 @@ def ejecutar_lote_backtests(
             trades = extraer_trades(stats)
             curva_equity = extraer_curva_equity(stats)
             drawdown = calcular_serie_drawdown(curva_equity)
+            metricas = enriquecer_metricas_capital(
+                calcular_metricas_resumen(stats),
+                parametros_base.get("capital_inicial"),
+            )
 
             resultados.append(
                 {
@@ -931,7 +1152,7 @@ def ejecutar_lote_backtests(
                     "fin": datos.index.max(),
                     "datos": datos if almacenar_datos else None,
                     "fuente_cache": fuente if not almacenar_datos else None,
-                    "metricas": calcular_metricas_resumen(stats),
+                    "metricas": metricas,
                     "trades": trades,
                     "equity": curva_equity,
                     "drawdown": drawdown,
@@ -996,9 +1217,11 @@ def render_inicio_general(archivos_locales: list[dict[str, object]], error_carpe
     if error_carpeta:
         st.info("Corrige la ruta de la carpeta en Nuevo backtest para ver archivos aqui.")
     elif archivos_locales:
-        preview = pd.DataFrame(archivos_locales).head(8)[["relativo", "extension", "tamano_mb"]]
+        preview = pd.DataFrame(archivos_locales).head(8)[["par", "bloque_fecha", "relativo", "extension", "tamano_mb"]]
         preview = preview.rename(
             columns={
+                "par": "Par",
+                "bloque_fecha": "Fecha",
                 "relativo": "Archivo",
                 "extension": "Tipo",
                 "tamano_mb": "Tamano (MB)",
@@ -1041,6 +1264,13 @@ def render_detalle_guardado(item: dict[str, object], indice: int):
     )
     metrica_cols[3].metric("Fallidos", resumen.get("archivos_fallidos", 0))
 
+    if resumen.get("beneficio_total_estimado") is not None:
+        extras = st.columns(4)
+        extras[0].metric("Capital base", formatear_numero(resumen.get("capital_inicial_base"), " $"))
+        extras[1].metric("Beneficio medio", formatear_numero(resumen.get("beneficio_medio_estimado"), " $"))
+        extras[2].metric("Beneficio total", formatear_numero(resumen.get("beneficio_total_estimado"), " $"))
+        extras[3].metric("Capital final medio", formatear_numero(resumen.get("capital_final_medio_estimado"), " $"))
+
     archivos = item.get("archivos", [])
     if archivos:
         filas = []
@@ -1051,6 +1281,8 @@ def render_detalle_guardado(item: dict[str, object], indice: int):
                     "Formato": archivo.get("formato", "N/D"),
                     "Velas": archivo.get("velas", "N/D"),
                     "Rentabilidad (%)": (archivo.get("metricas") or {}).get("rentabilidad_total"),
+                    "Beneficio estimado ($)": (archivo.get("metricas") or {}).get("beneficio_estimado"),
+                    "Capital final estimado ($)": (archivo.get("metricas") or {}).get("capital_final_estimado"),
                     "Operaciones": (archivo.get("metricas") or {}).get("total_operaciones"),
                     "Error": archivo.get("error"),
                 }
@@ -1160,6 +1392,7 @@ def render_formulario_backtest(
             seleccion_local = []
         else:
             archivos_visibles = archivos_locales
+            clave_multiselect = f"{key_prefix}_multiselect_local"
             if modo_optimizado:
                 busqueda_local = st.text_input(
                     "Filtrar biblioteca",
@@ -1172,6 +1405,57 @@ def render_formulario_backtest(
                     default=[".csv"] if modo_optimizado else sorted(EXTENSIONES_CARPETA),
                     key=f"{key_prefix}_extensiones_local",
                 )
+                base_por_texto = filtrar_archivos_locales(
+                    archivos_locales,
+                    texto_busqueda=busqueda_local,
+                    extensiones=extensiones_locales,
+                )
+                pares_disponibles = lista_unica([item.get("par") for item in base_por_texto])
+                pares_activos = st.multiselect(
+                    "Pares/divisas",
+                    options=pares_disponibles,
+                    key=f"{key_prefix}_pares_local",
+                    help="Si lo dejas vacio, se usan todos los pares detectados.",
+                )
+                base_por_par = filtrar_archivos_locales(
+                    base_por_texto,
+                    pares=pares_activos,
+                )
+                anios_disponibles = sorted(
+                    {str(item.get("anio")) for item in base_por_par if item.get("anio")},
+                    key=lambda valor: int(valor),
+                    reverse=True,
+                )
+                anios_activos = st.multiselect(
+                    "Anios",
+                    options=anios_disponibles,
+                    key=f"{key_prefix}_anios_local",
+                    help="Si lo dejas vacio, se usan todos los anios detectados.",
+                )
+                periodo_visible = st.radio(
+                    "Bloque temporal",
+                    options=["Todo", "Full year", "Meses"],
+                    horizontal=True,
+                    key=f"{key_prefix}_periodo_local",
+                )
+                periodos_activos = {
+                    "Todo": None,
+                    "Full year": ["full_year"],
+                    "Meses": ["month"],
+                }[periodo_visible]
+                base_por_fecha = filtrar_archivos_locales(
+                    base_por_par,
+                    anios=anios_activos,
+                    periodos=periodos_activos,
+                )
+                meses_disponibles = lista_unica([item.get("mes_etiqueta") for item in base_por_fecha if item.get("mes_etiqueta")])
+                meses_activos = st.multiselect(
+                    "Meses",
+                    options=meses_disponibles,
+                    key=f"{key_prefix}_meses_local",
+                    help="Solo se aplica cuando el bloque temporal esta en Meses.",
+                    disabled=periodo_visible != "Meses",
+                )
                 limite_local = st.slider(
                     "Maximo de archivos visibles",
                     min_value=50,
@@ -1180,17 +1464,62 @@ def render_formulario_backtest(
                     step=50,
                     key=f"{key_prefix}_limite_local",
                 )
-                archivos_visibles = filtrar_archivos_locales(
+                archivos_coincidentes = filtrar_archivos_locales(
                     archivos_locales,
                     texto_busqueda=busqueda_local,
                     extensiones=extensiones_locales,
-                    limite=limite_local,
+                    pares=pares_activos,
+                    anios=anios_activos,
+                    periodos=periodos_activos,
+                    meses=meses_activos if periodo_visible == "Meses" else None,
                 )
+                archivos_visibles = filtrar_archivos_locales(archivos_coincidentes, limite=limite_local)
+                seleccion_actual = st.session_state.get(clave_multiselect, [])
                 st.caption(
-                    f"Mostrando {len(archivos_visibles)} de {len(archivos_locales)} archivos detectados."
+                    f"Coincidencias: {len(archivos_coincidentes)} | visibles: {len(archivos_visibles)} | seleccion actual: {len(seleccion_actual)}"
                 )
+                acciones = st.columns(3)
+                if acciones[0].button(
+                    "Usar filtrados",
+                    use_container_width=True,
+                    key=f"{key_prefix}_usar_filtrados",
+                    disabled=not archivos_coincidentes,
+                ):
+                    st.session_state[clave_multiselect] = [item["ruta"] for item in archivos_coincidentes]
+                    st.rerun()
+                if acciones[1].button(
+                    "Anadir filtrados",
+                    use_container_width=True,
+                    key=f"{key_prefix}_anadir_filtrados",
+                    disabled=not archivos_coincidentes,
+                ):
+                    combinados = seleccion_actual + [item["ruta"] for item in archivos_coincidentes]
+                    st.session_state[clave_multiselect] = list(dict.fromkeys(combinados))
+                    st.rerun()
+                if acciones[2].button(
+                    "Vaciar seleccion",
+                    use_container_width=True,
+                    key=f"{key_prefix}_vaciar_seleccion_local",
+                    disabled=not seleccion_actual,
+                ):
+                    st.session_state[clave_multiselect] = []
+                    st.rerun()
 
-            clave_multiselect = f"{key_prefix}_multiselect_local"
+                if archivos_visibles:
+                    preview_organizada = pd.DataFrame(
+                        [
+                            {
+                                "Par": item.get("par"),
+                                "Fecha": item.get("bloque_fecha"),
+                                "Archivo": item.get("relativo"),
+                                "Tipo": item.get("extension"),
+                            }
+                            for item in archivos_visibles[:12]
+                        ]
+                    )
+                    with st.expander("Vista previa organizada", expanded=False):
+                        st.dataframe(preview_organizada, use_container_width=True, hide_index=True)
+
             opciones = [item["ruta"] for item in archivos_visibles]
             mapa = {item["ruta"]: item["etiqueta"] for item in archivos_visibles}
             seleccion_previa = st.session_state.get(clave_multiselect, [])
@@ -1365,6 +1694,8 @@ def render_seleccion_actual(
         filas.append(
             {
                 "Origen": "Carpeta local",
+                "Par": item.get("par") if item else "N/D",
+                "Fecha": item.get("bloque_fecha") if item else "N/D",
                 "Archivo": item["relativo"] if item else Path(ruta).name,
                 "Tipo": item["extension"] if item else Path(ruta).suffix.lower(),
                 "Tamano (MB)": f"{item['tamano_mb']:.2f}" if item else "N/D",
@@ -1376,6 +1707,8 @@ def render_seleccion_actual(
         filas.append(
             {
                 "Origen": "Subida manual",
+                "Par": "N/D",
+                "Fecha": "N/D",
                 "Archivo": archivo.name,
                 "Tipo": Path(archivo.name).suffix.lower(),
                 "Tamano (MB)": f"{tamano_mb:.2f}",
@@ -1478,7 +1811,7 @@ def render_resultado_individual(
         st.dataframe(resultado["resumen_motor"], use_container_width=True, hide_index=True)
 
 
-def render_resumen_global(lote_actual: dict[str, object]):
+def render_resumen_global(lote_actual: dict[str, object], modo_optimizado: bool = False):
     """Muestra la comparativa general del lote."""
     resultados = lote_actual["resultados"]
     exitosos = [resultado for resultado in resultados if not resultado.get("error")]
@@ -1493,6 +1826,16 @@ def render_resumen_global(lote_actual: dict[str, object]):
     fila[3].metric("Operaciones totales", resumen["operaciones_totales"])
     fila[4].metric("Rentabilidad media", formatear_numero(resumen["rentabilidad_media"], "%"))
     fila[5].metric("Win rate medio", formatear_numero(resumen["win_rate_medio"], "%"))
+
+    if modo_optimizado and resumen.get("beneficio_total_estimado") is not None:
+        fila_extra = st.columns(4)
+        fila_extra[0].metric("Capital base por archivo", formatear_numero(resumen.get("capital_inicial_base"), " $"))
+        fila_extra[1].metric("Beneficio medio estimado", formatear_numero(resumen.get("beneficio_medio_estimado"), " $"))
+        fila_extra[2].metric("Beneficio total estimado", formatear_numero(resumen.get("beneficio_total_estimado"), " $"))
+        fila_extra[3].metric("Capital final medio estimado", formatear_numero(resumen.get("capital_final_medio_estimado"), " $"))
+        st.caption(
+            "Los importes estimados aplican la rentabilidad de cada archivo sobre el mismo capital inicial base, sin encadenar resultados entre datasets."
+        )
 
     st.caption(f"Mejor archivo del lote: {resumen['mejor_archivo']}")
 
@@ -1575,7 +1918,7 @@ def render_lote_actual(
         etiquetas.append("Errores")
 
     if modo_optimizado:
-        render_resumen_global(lote_actual)
+        render_resumen_global(lote_actual, modo_optimizado=True)
 
         if exitosos:
             mapa_resultados = {
@@ -1618,7 +1961,7 @@ def render_lote_actual(
     pestanas = st.tabs(etiquetas)
 
     with pestanas[0]:
-        render_resumen_global(lote_actual)
+        render_resumen_global(lote_actual, modo_optimizado=modo_optimizado)
 
     for indice, resultado in enumerate(exitosos, start=1):
         with pestanas[indice]:
@@ -1702,7 +2045,10 @@ def ejecutar_y_guardar_lote(
         )
 
     marca = datetime.now().strftime("%Y-%m-%d %H:%M")
-    resumen_global = calcular_resumen_global(resultados)
+    resumen_global = calcular_resumen_global(
+        resultados,
+        capital_inicial=formulario["parametros"].get("capital_inicial"),
+    )
     st.session_state[key_resultado] = {
         "timestamp": marca,
         "estrategia": formulario["estrategia"],
